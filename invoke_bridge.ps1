@@ -33,7 +33,7 @@ param(
         'mouse-test', 'notepad-test', 'browser-test', 'screenshot-test',
         'active-window', 'focus-window', 'list-windows',
         'stage-text-file', 'paste', 'paste-enter',
-        'cursor-pos', 'move-rel', 'click-here', 'open-or-focus', 'click-screenshot'
+        'cursor-pos', 'move-rel', 'click-here', 'open-or-focus', 'click-screenshot', 'click-anchor'
     )]
     [string]$Action,
     [Parameter(ValueFromRemainingArguments = $true)]
@@ -396,6 +396,18 @@ switch ($Action) {
             Write-Host '[PASS] open-or-focus' -ForegroundColor Green
             Write-Host "       key=$key open=$($info.open) focus_title~=$($info.title)" -ForegroundColor DarkGray
         }
+    }
+    'click-anchor' {
+        if (-not $RemainingArguments -or $RemainingArguments.Count -lt 2) {
+            Write-Host '[FAIL] click-anchor - requires <App> <Name> [condition]' -ForegroundColor Red
+            exit 1
+        }
+        $ca = Join-Path $PSScriptRoot 'click_anchor.ps1'
+        $appN = $RemainingArguments[0]
+        $nameN = $RemainingArguments[1]
+        $condN = if ($RemainingArguments.Count -ge 3) { $RemainingArguments[2] } else { '' }
+        & $ca -EnvFile $EnvFile -App $appN -Name $nameN -Condition $condN
+        $success = ($LASTEXITCODE -eq 0)
     }
 }
 

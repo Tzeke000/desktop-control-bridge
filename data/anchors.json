@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "anchors": [
+    {
+      "app": "Cursor",
+      "name": "composer_input_fullscreen",
+      "condition": "fullscreen",
+      "x": 840,
+      "y": 970,
+      "width": null,
+      "height": null,
+      "description": "bottom-left Plan, @ for context, / for commands input region",
+      "notes": "Approximate for 1920x1080 fullscreen Cursor; refine x/y for your resolution/DPI. Click center or use width/height for a zone.",
+      "expect_process_contains": "cursor",
+      "expect_title_contains": "",
+      "confidence": 0.6,
+      "tags": ["cursor", "composer", "fullscreen"],
+      "created_at": "2026-04-06T12:00:00Z",
+      "updated_at": "2026-04-06T12:00:00Z"
+    }
+  ]
+}

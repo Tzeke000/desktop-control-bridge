@@ -16,6 +16,38 @@ try {
 }
 catch { }
 
+function Get-BridgeAnchorsFilePath {
+    <#
+    .SYNOPSIS
+      Resolve anchors JSON path: BRIDGE_ANCHORS_PATH from .env / env, else data/anchors.json under project root.
+    #>
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$ProjectRoot,
+        [string]$EnvFile = ''
+    )
+    $envPath = if ($EnvFile) {
+        if ([System.IO.Path]::IsPathRooted($EnvFile)) { $EnvFile } else { Join-Path $ProjectRoot $EnvFile }
+    }
+    else {
+        Join-Path $ProjectRoot '.env'
+    }
+    if (Test-Path -LiteralPath $envPath) {
+        $m = Get-BridgeDotEnv -Path $envPath
+        if ($m['BRIDGE_ANCHORS_PATH'] -and $m['BRIDGE_ANCHORS_PATH'].Trim()) {
+            $p = $m['BRIDGE_ANCHORS_PATH'].Trim()
+            if ([System.IO.Path]::IsPathRooted($p)) { return $p }
+            return (Join-Path $ProjectRoot $p)
+        }
+    }
+    if ($env:BRIDGE_ANCHORS_PATH -and $env:BRIDGE_ANCHORS_PATH.Trim()) {
+        $p2 = $env:BRIDGE_ANCHORS_PATH.Trim()
+        if ([System.IO.Path]::IsPathRooted($p2)) { return $p2 }
+        return (Join-Path $ProjectRoot $p2)
+    }
+    Join-Path $ProjectRoot 'data\anchors.json'
+}
+
 function Get-BridgeDotEnv {
     param([string]$Path)
     $map = @{}

@@ -295,12 +295,43 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\paste_staged.ps1 -PressEnt
 | `move-rel <dx> <dy>` | `POST /mouse/move-relative` |
 | `click-here` | Left click at current cursor position |
 | `click-screenshot` | Left click at cursor, then `POST /screenshot` (short delay) |
+| `click-anchor <App> <Name> [condition]` | `click_anchor.ps1`: move + click a saved anchor (see **UI anchors** below) |
+
+## UI anchors (saved click targets / regions)
+
+**Anchors** are **local JSON** records (default: **`data/anchors.json`**, override with **`BRIDGE_ANCHORS_PATH`** in `.env`) so Emil can reuse stable points or rectangles (width/height optional; click uses **region center**) without re-probing every time.
+
+**Manage anchors** (`anchors.ps1` does not need the bridge API—only the JSON file):
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\anchors.ps1 path
+powershell -NoProfile -ExecutionPolicy Bypass -File .\anchors.ps1 list
+powershell -NoProfile -ExecutionPolicy Bypass -File .\anchors.ps1 list -App Cursor
+powershell -NoProfile -ExecutionPolicy Bypass -File .\anchors.ps1 get -App Cursor -Name composer_input_fullscreen -Condition fullscreen
+powershell -NoProfile -ExecutionPolicy Bypass -File .\anchors.ps1 add -App Chrome -Name url_bar -X 400 -Y 72 -Width 800 -Height 40 -Description "URL field" -ExpectProcess chrome
+powershell -NoProfile -ExecutionPolicy Bypass -File .\anchors.ps1 update -App Cursor -Name composer_input_fullscreen -Condition fullscreen -X 900 -Y 980
+powershell -NoProfile -ExecutionPolicy Bypass -File .\anchors.ps1 remove -App Chrome -Name url_bar
+powershell -NoProfile -ExecutionPolicy Bypass -File .\anchors.ps1 export -ExportPath D:\backup\anchors.json
+```
+
+**Click an anchor** (requires **running bridge**; by default checks **foreground process/title** if the record sets `expect_process_contains` / `expect_title_contains`):
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\click_anchor.ps1 -App Cursor -Name composer_input_fullscreen -Condition fullscreen
+powershell -NoProfile -ExecutionPolicy Bypass -File .\click_anchor.ps1 -App Cursor -Name composer_input_fullscreen -Condition fullscreen -MoveOnly
+powershell -NoProfile -ExecutionPolicy Bypass -File .\click_anchor.ps1 -App Cursor -Name composer_input_fullscreen -Condition fullscreen -DoubleClick -ScreenshotAfter
+powershell -NoProfile -ExecutionPolicy Bypass -File .\invoke_bridge.ps1 click-anchor Cursor composer_input_fullscreen fullscreen
+```
+
+Use **`-NoVerify`** only if you accept clicking without matching the expected app.
+
+The repo seeds **Cursor / `composer_input_fullscreen` / fullscreen** with **approximate** coordinates—**adjust** for your monitor, DPI, and layout (`anchors.ps1 update …`).
 
 **Example: Cursor chat**
 
 1. `.\clipboard_stage.ps1 -LiteralPath .\prompt.txt`
 2. `.\window_probe.ps1` (confirm title/process for Cursor)
-3. Focus the chat field (click or `invoke_bridge.ps1 focus-window Cursor`)
+3. Focus the composer (click saved anchor: `.\invoke_bridge.ps1 click-anchor Cursor composer_input_fullscreen fullscreen`, or `focus-window`)
 4. `.\paste_staged.ps1 -ExpectTitleContains Cursor -ExpectProcessContains cursor`
 5. Inspect the composer; only then send manually or add `-PressEnter` on a later run if appropriate.
 
@@ -330,6 +361,9 @@ These scripts load **`BRIDGE_HOST`**, **`BRIDGE_PORT`**, and **`BRIDGE_TOKEN`** 
 | `vision_snapshot.ps1` | **`/screenshot`** (or **`-Context`**) + OCR on **`workspace_path`**; prints paths, optional active window, text. |
 | `vision_ready.ps1` | **Health**, **status**, workspace, handoff, **OCR** on new capture — PASS/FAIL report. |
 | `vision_ocr.ps1` | RapidOCR only: latest workspace PNG, explicit path, **`-Region`**, **`-Crop`**, **`-ActiveWindow`**. |
+| `anchors.ps1` | CRUD **UI anchors** JSON (**`data/anchors.json`** by default). |
+| `click_anchor.ps1` | Move/click via API using a saved anchor (+ optional safety check). |
+| `verify_paste_ocr.ps1` | After paste: screenshot + OCR a band to sanity-check on-screen text. |
 
 **Verify the bridge is up**
 
