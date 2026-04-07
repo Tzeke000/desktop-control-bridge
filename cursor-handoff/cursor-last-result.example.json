@@ -1,0 +1,16 @@
+{
+  "status": "done",
+  "summary": "Short description of what was completed.",
+  "changed_files": [
+    "path/to/file1",
+    "path/to/file2"
+  ],
+  "commands_to_use": [
+    "powershell -NoProfile -ExecutionPolicy Bypass -File .\\read_cursor_result.ps1",
+    "powershell -NoProfile -ExecutionPolicy Bypass -File .\\status_bridge.ps1"
+  ],
+  "worked": true,
+  "caveats": "Optional notes (encoding, manual steps, etc.).",
+  "commit_hash": "",
+  "finished_at": "2026-04-07T12:00:00Z"
+}

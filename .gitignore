@@ -14,3 +14,6 @@ logs/
 *.log
 .DS_Store
 Thumbs.db
+
+# Ephemeral Cursor/Emil completion handoff (overwrite each run; see cursor-handoff/)
+cursor-handoff/cursor-last-result.json

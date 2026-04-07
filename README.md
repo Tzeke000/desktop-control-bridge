@@ -363,6 +363,7 @@ These scripts load **`BRIDGE_HOST`**, **`BRIDGE_PORT`**, and **`BRIDGE_TOKEN`** 
 | `vision_ocr.ps1` | RapidOCR only: latest workspace PNG, explicit path, **`-Region`**, **`-Crop`**, **`-ActiveWindow`**. |
 | `anchors.ps1` | CRUD **UI anchors** JSON (**`data/anchors.json`** by default). |
 | `click_anchor.ps1` | Move/click via API using a saved anchor (+ optional safety check). |
+| `read_cursor_result.ps1` | Pretty-print **`cursor-handoff/cursor-last-result.json`** (or **`-Example`**). |
 | `verify_paste_ocr.ps1` | After paste: screenshot + OCR a band to sanity-check on-screen text. |
 | `start_bridge.ps1` | New PowerShell window: venv **`python run.py`**; skips if **`/health`** already OK; writes **`logs/bridge-lifecycle.json`**. |
 | `stop_bridge.ps1` | Stops verified **`run.py`** listener (project path or meta/listen owner); clears lifecycle meta. |
@@ -478,6 +479,27 @@ With `.env` configured:
 
 ```powershell
 .\.venv\Scripts\python.exe scripts\smoke_test.py
+```
+
+## Cursor / Emil completion handoff (durable last result)
+
+**Purpose:** After a Cursor task finishes, Emil (or any script) can read a **single local file** instead of the chat UI or a human relay.
+
+**Live file (not committed; overwrite each run):**
+
+`cursor-handoff/cursor-last-result.json`
+
+**Template in repo:** `cursor-handoff/cursor-last-result.example.json`
+
+**Suggested JSON keys:** `status`, `summary`, `changed_files` (array of paths), `commands_to_use` (array of strings), `worked` (boolean), `caveats` (string), `commit_hash` (string), `finished_at` (UTC ISO-8601, e.g. `2026-04-07T12:00:00Z`).
+
+**Pattern for Cursor (end of task):** Overwrite `cursor-handoff/cursor-last-result.json` with UTF-8 JSON containing those fields. Do **not** append to the file; replace it entirely.
+
+**Read from PowerShell:**
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\read_cursor_result.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File .\read_cursor_result.ps1 -Example
 ```
 
 ## Publishing to GitHub
