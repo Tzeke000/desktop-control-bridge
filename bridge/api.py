@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
+from datetime import datetime, timezone
 from typing import Annotated, Any, Callable
 
 from fastapi import Depends, FastAPI, HTTPException, Request, Response, status
@@ -436,13 +437,47 @@ def screenshot(_: Auth, body: ScreenshotBody) -> dict[str, Any]:
     path_holder: dict[str, str] = {}
 
     def do() -> None:
-        p = screenshot_control.capture_to_file(body.filename)
-        path_holder["path"] = str(p.resolve())
+        res = screenshot_control.capture_to_file(body.filename)
+        path_holder["original_path"] = str(res.original.resolve())
+        path_holder["workspace_path"] = str(res.workspace.resolve())
 
     out = _run_control(
         "/screenshot",
         f"filename={body.filename!r}",
         do,
     )
-    out["path"] = path_holder.get("path", "")
+    out["original_path"] = path_holder.get("original_path", "")
+    out["workspace_path"] = path_holder.get("workspace_path", "")
+    out["path"] = out["original_path"]
+    return out
+
+
+@app.post("/screenshot/context")
+def screenshot_context(_: Auth, body: ScreenshotBody) -> dict[str, Any]:
+    ctx: dict[str, Any] = {}
+
+    def do() -> None:
+        captured_at = datetime.now(timezone.utc).isoformat()
+        aw = window_control.get_foreground_window()
+        active: dict[str, Any] | None = None
+        if aw:
+            active = {
+                "hwnd": aw.hwnd,
+                "title": aw.title,
+                "pid": aw.pid,
+                "process_name": aw.process_name,
+            }
+        res = screenshot_control.capture_to_file(body.filename)
+        ctx["original_path"] = str(res.original.resolve())
+        ctx["workspace_path"] = str(res.workspace.resolve())
+        ctx["active_window"] = active
+        ctx["captured_at"] = captured_at
+
+    out = _run_control(
+        "/screenshot/context",
+        f"filename={body.filename!r}",
+        do,
+    )
+    out.update(ctx)
+    out["path"] = ctx.get("original_path", "")
     return out

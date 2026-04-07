@@ -117,9 +117,32 @@ Authorization: Bearer <your BRIDGE_TOKEN>
 | POST | `/browser/new-tab` | Ctrl+T |
 | POST | `/browser/focus-address-bar` | Ctrl+L |
 | POST | `/browser/search` | Opens Google search for `query` (types URL + Enter) |
-| POST | `/screenshot` | Saves PNG under `screenshots/`, returns `path` |
+| POST | `/screenshot` | Saves PNG under the project screenshot dir **and** copies it to the OpenClaw vision workspace; JSON includes **`original_path`**, **`workspace_path`**, and **`path`** (same as `original_path`). |
+| POST | `/screenshot/context` | Same as `/screenshot`, plus **`active_window`** (title, pid, process_name, hwnd) sampled before capture and **`captured_at`** (UTC ISO-8601). |
 
 Full schemas: `/openapi.json` or `/docs`.
+
+## Emil vision handoff (OpenClaw workspace)
+
+Every authenticated **`POST /screenshot`** (and **`POST /screenshot/context`**) still writes the primary PNG under the project’s **`BRIDGE_SCREENSHOT_DIR`** (default: **`screenshots/`** next to the repo). The bridge **also** copies that file into **`BRIDGE_VISION_WORKSPACE`**, default:
+
+`%USERPROFILE%\.openclaw\workspace\bridge-vision`
+
+The folder is created if missing. Nothing is served over the LAN; paths are local disk only. Emil’s OpenClaw workspace can read **`workspace_path`** without relying on the bridge project tree.
+
+**Capture from PowerShell**
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\vision_capture.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File .\vision_capture.ps1 -Context
+```
+
+**Readiness check** (expects the bridge running unless you pass **`-SkipApi`**)
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\vision_readiness.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File .\vision_readiness.ps1 -SkipApi
+```
 
 ## PowerShell helper scripts (Windows PowerShell 5.1+)
 
@@ -131,6 +154,8 @@ These scripts load **`BRIDGE_HOST`**, **`BRIDGE_PORT`**, and **`BRIDGE_TOKEN`** 
 | `verify.ps1` | Quick checks: `.env` exists, port valid, `GET /health`, optional `GET /status` with auth. |
 | `smoke_actions.ps1` | Interactive smoke sequences (`mouse-test`, `notepad-test`, …, or `all`). |
 | `invoke_bridge.ps1` | Single-action CLI wrapper for common API calls. |
+| `vision_capture.ps1` | Calls **`/screenshot`** (or **`/screenshot/context`** with **`-Context`**) and prints both path fields. |
+| `vision_readiness.ps1` | Ensures the vision folder exists; optionally calls **`/screenshot`** and checks the newest PNG in the workspace. |
 
 **Verify the bridge is up**
 
@@ -154,6 +179,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\invoke_bridge.ps1 health
 powershell -NoProfile -ExecutionPolicy Bypass -File .\invoke_bridge.ps1 status
 
 powershell -NoProfile -ExecutionPolicy Bypass -File .\invoke_bridge.ps1 screenshot
+powershell -NoProfile -ExecutionPolicy Bypass -File .\invoke_bridge.ps1 screenshot-context
 powershell -NoProfile -ExecutionPolicy Bypass -File .\invoke_bridge.ps1 open-url https://example.com
 powershell -NoProfile -ExecutionPolicy Bypass -File .\invoke_bridge.ps1 app-open notepad
 

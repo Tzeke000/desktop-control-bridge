@@ -28,7 +28,7 @@ param(
     [string]$EnvFile = '',
     [Parameter(Position = 0, Mandatory = $true)]
     [ValidateSet(
-        'status', 'health', 'screenshot', 'open-url', 'app-open', 'type', 'hotkey', 'move', 'click',
+        'status', 'health', 'screenshot', 'screenshot-context', 'open-url', 'app-open', 'type', 'hotkey', 'move', 'click',
         'mouse-test', 'notepad-test', 'browser-test', 'screenshot-test'
     )]
     [string]$Action,
@@ -87,9 +87,29 @@ switch ($Action) {
     'screenshot' {
         $success = Invoke-One {
             $r = Invoke-BridgeJsonPost '/screenshot' @{}
-            if (-not $r.path) { throw 'response missing path' }
+            if (-not $r.original_path) { throw 'response missing original_path' }
+            if (-not $r.workspace_path) { throw 'response missing workspace_path' }
             Write-Host '[PASS] screenshot' -ForegroundColor Green
-            Write-Host "       path: $($r.path)" -ForegroundColor DarkGray
+            Write-Host "       original_path: $($r.original_path)" -ForegroundColor DarkGray
+            Write-Host "       workspace_path: $($r.workspace_path)" -ForegroundColor DarkGray
+        }
+    }
+    'screenshot-context' {
+        $success = Invoke-One {
+            $r = Invoke-BridgeJsonPost '/screenshot/context' @{}
+            if (-not $r.original_path) { throw 'response missing original_path' }
+            if (-not $r.workspace_path) { throw 'response missing workspace_path' }
+            Write-Host '[PASS] screenshot-context' -ForegroundColor Green
+            Write-Host "       original_path: $($r.original_path)" -ForegroundColor DarkGray
+            Write-Host "       workspace_path: $($r.workspace_path)" -ForegroundColor DarkGray
+            Write-Host "       captured_at: $($r.captured_at)" -ForegroundColor DarkGray
+            if ($r.active_window) {
+                Write-Host "       active_title: $($r.active_window.title)" -ForegroundColor DarkGray
+                Write-Host "       active_process: $($r.active_window.process_name)" -ForegroundColor DarkGray
+            }
+            else {
+                Write-Host '       active_window: (null)' -ForegroundColor DarkGray
+            }
         }
     }
     'open-url' {
@@ -195,9 +215,10 @@ switch ($Action) {
     }
     'screenshot-test' {
         try {
-            $p = Invoke-BridgeSmoke_ScreenshotTest
+            $r = Invoke-BridgeSmoke_ScreenshotTest
             Write-Host '[PASS] screenshot-test' -ForegroundColor Green
-            Write-Host "       path: $p" -ForegroundColor DarkGray
+            Write-Host "       original_path: $($r.original_path)" -ForegroundColor DarkGray
+            Write-Host "       workspace_path: $($r.workspace_path)" -ForegroundColor DarkGray
             $success = $true
         }
         catch {

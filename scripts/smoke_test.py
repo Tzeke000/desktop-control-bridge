@@ -49,7 +49,14 @@ def main() -> None:
 
     r = requests.post(f"{base}/screenshot", headers=h, json={}, timeout=10)
     assert r.status_code == 200, r.text
-    assert "path" in r.json()
+    data = r.json()
+    assert data.get("original_path")
+    assert data.get("workspace_path")
+    assert data.get("path") == data["original_path"]
+    from pathlib import Path
+
+    assert Path(data["original_path"]).is_file()
+    assert Path(data["workspace_path"]).is_file()
 
     r = requests.post(
         f"{base}/pause",

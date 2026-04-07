@@ -5,6 +5,10 @@ from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
+def _default_vision_workspace() -> Path:
+    return Path.home() / ".openclaw" / "workspace" / "bridge-vision"
+
+
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=".env",
@@ -19,6 +23,10 @@ class Settings(BaseSettings):
     log_dir: Path = Field(default=Path("logs"), validation_alias="BRIDGE_LOG_DIR")
     screenshot_dir: Path = Field(
         default=Path("screenshots"), validation_alias="BRIDGE_SCREENSHOT_DIR"
+    )
+    vision_workspace_dir: Path = Field(
+        default_factory=_default_vision_workspace,
+        validation_alias="BRIDGE_VISION_WORKSPACE",
     )
     macros_path: Path | None = Field(default=None, validation_alias="BRIDGE_MACROS_PATH")
 

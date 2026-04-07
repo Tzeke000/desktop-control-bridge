@@ -52,9 +52,10 @@ foreach ($step in $toRun) {
         }
         'screenshot-test' {
             try {
-                $p = Invoke-BridgeSmoke_ScreenshotTest
+                $r = Invoke-BridgeSmoke_ScreenshotTest
                 Write-Host '[PASS] screenshot-test' -ForegroundColor Green
-                Write-Host "       path: $p" -ForegroundColor DarkGray
+                Write-Host "       original_path: $($r.original_path)" -ForegroundColor DarkGray
+                Write-Host "       workspace_path: $($r.workspace_path)" -ForegroundColor DarkGray
             }
             catch {
                 Write-Host "[FAIL] screenshot-test - $($_.Exception.Message)" -ForegroundColor Red

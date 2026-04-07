@@ -149,7 +149,9 @@ function Invoke-BridgeSmoke_BrowserTest {
 
 function Invoke-BridgeSmoke_ScreenshotTest {
     $r = Invoke-BridgeJsonPost '/screenshot' @{}
-    if (-not $r.path) { throw 'Response missing path' }
-    if (-not (Test-Path -LiteralPath $r.path)) { throw "File not found: $($r.path)" }
-    return $r.path
+    if (-not $r.original_path) { throw 'Response missing original_path' }
+    if (-not $r.workspace_path) { throw 'Response missing workspace_path' }
+    if (-not (Test-Path -LiteralPath $r.original_path)) { throw "Missing project file: $($r.original_path)" }
+    if (-not (Test-Path -LiteralPath $r.workspace_path)) { throw "Missing workspace file: $($r.workspace_path)" }
+    return $r
 }
