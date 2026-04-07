@@ -2,25 +2,13 @@
 <#
 .SYNOPSIS
   Run local OCR (RapidOCR) on a screenshot. No cloud; never prints BRIDGE_TOKEN.
-
-.PARAMETER ImagePath
-  Path to an image file. If empty, uses the newest .png in the OpenClaw bridge-vision workspace.
-
-.PARAMETER EnvFile
-  Optional .env path; applies BRIDGE_VISION_WORKSPACE to the environment when present.
-
-.PARAMETER WorkspaceDir
-  Override vision workspace directory for default (latest) mode.
-
-.PARAMETER NoPreprocess
-  Skip grayscale / contrast / resize.
-
-.PARAMETER QuietMeta
-  Text only (Python --quiet-meta).
 #>
 param(
     [string]$EnvFile = '',
     [string]$WorkspaceDir = '',
+    [string]$Region = '',
+    [string]$Crop = '',
+    [switch]$ActiveWindow,
     [switch]$NoPreprocess,
     [switch]$QuietMeta,
     [Parameter(Position = 0)]
@@ -29,6 +17,15 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $root = $PSScriptRoot
+
+$rx = 0
+if ($Region.Trim()) { $rx++ }
+if ($Crop.Trim()) { $rx++ }
+if ($ActiveWindow) { $rx++ }
+if ($rx -gt 1) {
+    Write-Host '[FAIL] use only one of -Region, -Crop, -ActiveWindow' -ForegroundColor Red
+    exit 1
+}
 
 if ($EnvFile) {
     $common = Join-Path $root 'bridge_ps_common.ps1'
@@ -68,6 +65,17 @@ if ($ImagePath -and $ImagePath.Trim()) {
 if ($WorkspaceDir.Trim()) {
     [void]$argList.Add('--workspace-dir')
     [void]$argList.Add($WorkspaceDir.Trim())
+}
+if ($Region.Trim()) {
+    [void]$argList.Add('--region')
+    [void]$argList.Add($Region.Trim())
+}
+if ($Crop.Trim()) {
+    [void]$argList.Add('--crop')
+    [void]$argList.Add($Crop.Trim())
+}
+if ($ActiveWindow) {
+    [void]$argList.Add('--active-window')
 }
 if ($NoPreprocess) {
     [void]$argList.Add('--no-preprocess')

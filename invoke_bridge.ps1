@@ -28,7 +28,8 @@ param(
     [string]$EnvFile = '',
     [Parameter(Position = 0, Mandatory = $true)]
     [ValidateSet(
-        'status', 'health', 'screenshot', 'screenshot-context', 'open-url', 'app-open', 'type', 'hotkey', 'move', 'click',
+        'status', 'health', 'see', 'see-context', 'see-active',
+        'screenshot', 'screenshot-context', 'open-url', 'app-open', 'type', 'hotkey', 'move', 'click',
         'mouse-test', 'notepad-test', 'browser-test', 'screenshot-test'
     )]
     [string]$Action,
@@ -69,6 +70,28 @@ function Invoke-One {
 $success = $false
 
 switch ($Action) {
+    'see' {
+        $vs = Join-Path $PSScriptRoot 'vision_snapshot.ps1'
+        $splat = @{ EnvFile = $EnvFile }
+        if ($RemainingArguments -and $RemainingArguments.Count -ge 1) {
+            $rn = $RemainingArguments[0].Trim().ToLowerInvariant()
+            if ($rn -in @('top', 'bottom', 'left', 'right', 'center', 'full')) {
+                $splat['Region'] = $RemainingArguments[0].Trim()
+            }
+        }
+        & $vs @splat
+        $success = ($LASTEXITCODE -eq 0)
+    }
+    'see-context' {
+        $vs = Join-Path $PSScriptRoot 'vision_snapshot.ps1'
+        & $vs -EnvFile $EnvFile -Context
+        $success = ($LASTEXITCODE -eq 0)
+    }
+    'see-active' {
+        $vs = Join-Path $PSScriptRoot 'vision_snapshot.ps1'
+        & $vs -EnvFile $EnvFile -ActiveWindow
+        $success = ($LASTEXITCODE -eq 0)
+    }
     'health' {
         $success = Invoke-One {
             $r = Invoke-BridgeGet '/health'

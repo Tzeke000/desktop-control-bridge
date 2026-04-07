@@ -175,10 +175,60 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\vision_ocr.ps1 D:\path\to\
 **Useful flags** (Python script; see `scripts/vision_ocr.py --help`):
 
 - `--no-preprocess` — skip grayscale / contrast / resize (try if layout is already high-contrast).
-- `--crop X,Y,W,H` — crop before OCR (for future region workflows).
+- `--crop X,Y,W,H` — pixel rectangle before OCR.
+- `--region NAME` — named band (see table below); mutually exclusive with `--crop` and `--active-window`.
+- `--active-window` — crop the **foreground window** using `GetWindowRect` on the full-screen capture (Windows / pywin32).
 - `--quiet-meta` — print **only** recognized text lines (no header).
 
+**Named regions** (fractions of image size; MVP heuristics):
+
+| Name | Meaning |
+|------|--------|
+| `top` | Upper third, full width |
+| `bottom` | Lower third |
+| `left` / `right` | Left / right third |
+| `center` | Central 50% × 50% |
+| `full` | Entire image |
+
+PowerShell also supports `-Region`, `-Crop`, `-ActiveWindow` on `vision_ocr.ps1`.
+
 Output includes **image path**, **UTC timestamp**, and **avg/min confidence** when lines are found.
+
+## Local perception loop (“see now”)
+
+One command to **capture** via the bridge (workspace copy) and **OCR** locally:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\vision_snapshot.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File .\vision_snapshot.ps1 -Context
+powershell -NoProfile -ExecutionPolicy Bypass -File .\vision_snapshot.ps1 -ActiveWindow
+powershell -NoProfile -ExecutionPolicy Bypass -File .\vision_snapshot.ps1 -Region bottom
+```
+
+**Combined wrapper** (`invoke_bridge.ps1`; same `.env` auth as other actions):
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\invoke_bridge.ps1 see
+powershell -NoProfile -ExecutionPolicy Bypass -File .\invoke_bridge.ps1 see-context
+powershell -NoProfile -ExecutionPolicy Bypass -File .\invoke_bridge.ps1 see-active
+powershell -NoProfile -ExecutionPolicy Bypass -File .\invoke_bridge.ps1 see center
+```
+
+(The last form passes a **named region** into `vision_snapshot.ps1`: `center`, `top`, …)
+
+**Full vision diagnostics** (bridge up, folder OK, handoff, OCR on fresh screenshot):
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\vision_ready.ps1
+```
+
+(`vision_readiness.ps1` remains a lighter folder/screenshot check without OCR.)
+
+**Typical Emil loop**
+
+1. `invoke_bridge.ps1 type '...'` / `move` / `click` / …
+2. `invoke_bridge.ps1 see` or `see-context` to read the screen locally.
+3. Repeat.
 
 **Limitations**
 
@@ -198,8 +248,10 @@ These scripts load **`BRIDGE_HOST`**, **`BRIDGE_PORT`**, and **`BRIDGE_TOKEN`** 
 | `smoke_actions.ps1` | Interactive smoke sequences (`mouse-test`, `notepad-test`, …, or `all`). |
 | `invoke_bridge.ps1` | Single-action CLI wrapper for common API calls. |
 | `vision_capture.ps1` | Calls **`/screenshot`** (or **`/screenshot/context`** with **`-Context`**) and prints both path fields. |
-| `vision_readiness.ps1` | Ensures the vision folder exists; optionally calls **`/screenshot`** and checks the newest PNG in the workspace. |
-| `vision_ocr.ps1` | Runs **local** RapidOCR on the newest workspace PNG or a given image path (no token printed). |
+| `vision_readiness.ps1` | Lighter check: vision folder + optional **`/screenshot`** + newest PNG. |
+| `vision_snapshot.ps1` | **`/screenshot`** (or **`-Context`**) + OCR on **`workspace_path`**; prints paths, optional active window, text. |
+| `vision_ready.ps1` | **Health**, **status**, workspace, handoff, **OCR** on new capture — PASS/FAIL report. |
+| `vision_ocr.ps1` | RapidOCR only: latest workspace PNG, explicit path, **`-Region`**, **`-Crop`**, **`-ActiveWindow`**. |
 
 **Verify the bridge is up**
 
@@ -221,6 +273,10 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\smoke_actions.ps1 screensh
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\invoke_bridge.ps1 health
 powershell -NoProfile -ExecutionPolicy Bypass -File .\invoke_bridge.ps1 status
+
+powershell -NoProfile -ExecutionPolicy Bypass -File .\invoke_bridge.ps1 see
+powershell -NoProfile -ExecutionPolicy Bypass -File .\invoke_bridge.ps1 see-context
+powershell -NoProfile -ExecutionPolicy Bypass -File .\invoke_bridge.ps1 see-active
 
 powershell -NoProfile -ExecutionPolicy Bypass -File .\invoke_bridge.ps1 screenshot
 powershell -NoProfile -ExecutionPolicy Bypass -File .\invoke_bridge.ps1 screenshot-context
