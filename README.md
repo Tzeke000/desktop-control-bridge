@@ -144,6 +144,49 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\vision_readiness.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File .\vision_readiness.ps1 -SkipApi
 ```
 
+## Local OCR (offline text from screenshots)
+
+Emil can read on-screen text **without remote image/OCR APIs** using **[RapidOCR](https://github.com/RapidAI/RapidOCR)** (ONNX models). Everything runs locally after install.
+
+**Install**
+
+```powershell
+cd desktop-control-bridge
+.\.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+```
+
+The first OCR run may **download** ONNX weights into your user cache (one-time). After that, **inference is fully local**—no remote API calls per image.
+
+**Run on the latest workspace screenshot** (newest `*.png` under `%USERPROFILE%\.openclaw\workspace\bridge-vision`, or `BRIDGE_VISION_WORKSPACE` in `.env`):
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\vision_ocr.ps1
+.\.venv\Scripts\python.exe scripts\vision_ocr.py
+```
+
+**Run on a specific file**
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\vision_ocr.ps1 D:\path\to\capture.png
+.\.venv\Scripts\python.exe scripts\vision_ocr.py D:\path\to\capture.png
+```
+
+**Useful flags** (Python script; see `scripts/vision_ocr.py --help`):
+
+- `--no-preprocess` — skip grayscale / contrast / resize (try if layout is already high-contrast).
+- `--crop X,Y,W,H` — crop before OCR (for future region workflows).
+- `--quiet-meta` — print **only** recognized text lines (no header).
+
+Output includes **image path**, **UTC timestamp**, and **avg/min confidence** when lines are found.
+
+**Limitations**
+
+- Accuracy depends on font size, anti-aliasing, scaling, and language; UI chrome and games are often harder than plain documents.
+- Model is geared toward typical text; rare fonts and heavy stylization degrade results.
+- Large images are downscaled in preprocessing for speed (see `--max-side`).
+- This path **does not** replace a full multimodal model for scene understanding—it extracts **text**.
+
 ## PowerShell helper scripts (Windows PowerShell 5.1+)
 
 These scripts load **`BRIDGE_HOST`**, **`BRIDGE_PORT`**, and **`BRIDGE_TOKEN`** from **`.env`** in the project root (or an alternate file). They build the **Bearer** header internally and **never print the raw token**.
@@ -156,6 +199,7 @@ These scripts load **`BRIDGE_HOST`**, **`BRIDGE_PORT`**, and **`BRIDGE_TOKEN`** 
 | `invoke_bridge.ps1` | Single-action CLI wrapper for common API calls. |
 | `vision_capture.ps1` | Calls **`/screenshot`** (or **`/screenshot/context`** with **`-Context`**) and prints both path fields. |
 | `vision_readiness.ps1` | Ensures the vision folder exists; optionally calls **`/screenshot`** and checks the newest PNG in the workspace. |
+| `vision_ocr.ps1` | Runs **local** RapidOCR on the newest workspace PNG or a given image path (no token printed). |
 
 **Verify the bridge is up**
 
