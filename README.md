@@ -10,7 +10,7 @@ This is **not** a public remote desktop product and **not** a stealth tool. It i
 - Requires a **Bearer token** on every control endpoint.
 - Rejects requests whose TCP client is not `127.0.0.1` (so typical `::1` or LAN clients are refused by design).
 - Logs each action to a **human-readable file** under `logs/bridge-actions.log` (configurable).
-- Ships with a **pystray** menu: pause/resume/stop, copy token, open logs, open interactive API docs, and a small **Tk dashboard** for quick tests.
+- Ships with a **pystray** menu: pause/resume/stop, copy token, open logs, open interactive API docs, and a small **Tk dashboard** for quick tests (including **See (screenshot + local OCR)**: calls **`/screenshot/context`**, runs **RapidOCR** on the workspace PNG, and can **copy** summary or OCR-only text to the clipboard).
 
 ## Safety model
 
