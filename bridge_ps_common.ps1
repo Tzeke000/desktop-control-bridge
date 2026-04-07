@@ -4,6 +4,18 @@
   Shared helpers for bridge PowerShell scripts. Never writes BRIDGE_TOKEN to output.
 #>
 
+# UTF-8 console reduces garbled Unicode (paths, active-window titles, OCR) on Windows.
+try {
+    $utf8 = New-Object System.Text.UTF8Encoding $false
+    [Console]::OutputEncoding = $utf8
+    [Console]::InputEncoding = $utf8
+    $OutputEncoding = $utf8
+    if ($Host -and $Host.UI -and $Host.UI.RawUI) {
+        $Host.UI.RawUI.OutputEncoding = $utf8
+    }
+}
+catch { }
+
 function Get-BridgeDotEnv {
     param([string]$Path)
     $map = @{}

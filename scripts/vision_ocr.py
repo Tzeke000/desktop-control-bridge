@@ -18,6 +18,17 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 NAMED_REGIONS = frozenset({"top", "bottom", "left", "right", "center", "full"})
 
 
+def _ensure_utf8_stdio() -> None:
+    if str(PROJECT_ROOT) not in sys.path:
+        sys.path.insert(0, str(PROJECT_ROOT))
+    try:
+        from bridge.win_stdio_utf8 import apply as _apply_win_utf8
+
+        _apply_win_utf8()
+    except Exception:
+        pass
+
+
 def _load_dotenv() -> None:
     try:
         from dotenv import load_dotenv
@@ -156,6 +167,7 @@ def run_ocr_on_file(ocr_input: Path) -> tuple[list[tuple[str, float]], list[floa
 
 
 def main() -> int:
+    _ensure_utf8_stdio()
     p = argparse.ArgumentParser(description="Local OCR for screenshot images (RapidOCR).")
     p.add_argument(
         "image",

@@ -342,6 +342,7 @@ curl -s -X POST http://127.0.0.1:47821/mouse/move \
 | `pip` builds Pillow from source | Use **Python 3.12+** with a recent pip so a **wheel** is used, or install a prebuilt Pillow for your Python version. |
 | UI automation flaky in games | Normal; this stack targets desktop apps, not anti-cheat games. |
 | Token leak in shell history | Prefer `.env` + app that reads it, or PowerShell secure strings, not inline secrets in shared scripts. |
+| Garbled OCR paths / international text in **cmd** or older consoles | Scripts set UTF-8 where possible. Use **Windows Terminal** or PowerShell 7+, or set `$env:PYTHONUTF8='1'` / `chcp 65001` before running Python. |
 
 ## Development smoke test
 

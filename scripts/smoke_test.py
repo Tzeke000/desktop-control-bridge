@@ -17,6 +17,13 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+try:
+    from bridge.win_stdio_utf8 import apply as _win_utf8_stdio
+
+    _win_utf8_stdio()
+except Exception:
+    pass
+
 
 def main() -> None:
     from bridge.api import app

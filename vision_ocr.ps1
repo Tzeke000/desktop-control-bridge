@@ -18,6 +18,13 @@ param(
 $ErrorActionPreference = 'Stop'
 $root = $PSScriptRoot
 
+$common = Join-Path $root 'bridge_ps_common.ps1'
+if (-not (Test-Path -LiteralPath $common)) {
+    Write-Host '[FAIL] bridge_ps_common.ps1 not found' -ForegroundColor Red
+    exit 1
+}
+. $common
+
 $rx = 0
 if ($Region.Trim()) { $rx++ }
 if ($Crop.Trim()) { $rx++ }
@@ -28,20 +35,16 @@ if ($rx -gt 1) {
 }
 
 if ($EnvFile) {
-    $common = Join-Path $root 'bridge_ps_common.ps1'
-    if (Test-Path -LiteralPath $common) {
-        . $common
-        $resolved = if ([System.IO.Path]::IsPathRooted($EnvFile)) {
-            $EnvFile
-        }
-        else {
-            Join-Path $root $EnvFile
-        }
-        if (Test-Path -LiteralPath $resolved) {
-            $m = Get-BridgeDotEnv -Path $resolved
-            if ($m['BRIDGE_VISION_WORKSPACE'] -and $m['BRIDGE_VISION_WORKSPACE'].Trim()) {
-                $env:BRIDGE_VISION_WORKSPACE = $m['BRIDGE_VISION_WORKSPACE'].Trim()
-            }
+    $resolved = if ([System.IO.Path]::IsPathRooted($EnvFile)) {
+        $EnvFile
+    }
+    else {
+        Join-Path $root $EnvFile
+    }
+    if (Test-Path -LiteralPath $resolved) {
+        $m = Get-BridgeDotEnv -Path $resolved
+        if ($m['BRIDGE_VISION_WORKSPACE'] -and $m['BRIDGE_VISION_WORKSPACE'].Trim()) {
+            $env:BRIDGE_VISION_WORKSPACE = $m['BRIDGE_VISION_WORKSPACE'].Trim()
         }
     }
 }

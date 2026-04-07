@@ -4,6 +4,13 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+try:
+    from bridge.win_stdio_utf8 import apply as _win_stdio_utf8
+
+    _win_stdio_utf8()
+except Exception:
+    pass
+
 import uvicorn
 
 from bridge.api import app
