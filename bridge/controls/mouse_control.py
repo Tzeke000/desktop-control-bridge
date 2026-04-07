@@ -7,9 +7,19 @@ pyautogui.FAILSAFE = False
 pyautogui.PAUSE = 0.02
 
 
+def position() -> tuple[int, int]:
+    p = pyautogui.position()
+    return int(p.x), int(p.y)
+
+
 def move_to(x: int, y: int, duration: float = 0.0) -> None:
     duration = max(0.0, float(duration))
     pyautogui.moveTo(int(x), int(y), duration=duration)
+
+
+def move_relative(dx: int, dy: int, duration: float = 0.0) -> None:
+    duration = max(0.0, float(duration))
+    pyautogui.moveRel(int(dx), int(dy), duration=duration)
 
 
 def click(

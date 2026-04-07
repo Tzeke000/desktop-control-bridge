@@ -102,6 +102,8 @@ Authorization: Bearer <your BRIDGE_TOKEN>
 | POST | `/mouse/click` | `button` left/right/middle, optional `x`,`y`, `clicks` 1–3 |
 | POST | `/mouse/drag` | `x1,y1` → `x2,y2`, optional `duration`, `button` |
 | POST | `/mouse/scroll` | `amount` (signed), `horizontal` |
+| GET | `/mouse/position` | Current cursor x,y (pyautogui) |
+| POST | `/mouse/move-relative` | `dx`, `dy`, optional `duration` |
 | POST | `/keyboard/type` | `text`, optional `interval`; `mode`: `type` or `paste` (clipboard + Ctrl+V) |
 | POST | `/keyboard/press` | Single `key` |
 | POST | `/keyboard/hotkey` | `keys`: e.g. `["ctrl","c"]` — use `winleft` for Win key |
@@ -229,6 +231,69 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\vision_ready.ps1
 1. `invoke_bridge.ps1 type '...'` / `move` / `click` / …
 2. `invoke_bridge.ps1 see` or `see-context` to read the screen locally.
 3. Repeat.
+
+## Exact clipboard staging and safe paste (no Notepad contamination)
+
+Typing huge prompts into Notepad (or trusting OCR) before pasting elsewhere can **corrupt or swap** clipboard contents. Prefer **staging the file directly to the clipboard**, then **verifying the target window** before **Ctrl+V**.
+
+**Stage exact text** (PowerShell; Unicode-safe, preserves newlines):
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\clipboard_stage.ps1 -LiteralPath D:\prompts\draft.md
+Get-Content -Raw -Encoding UTF8 .\note.txt | powershell -NoProfile -ExecutionPolicy Bypass -File .\clipboard_stage.ps1 -Stdin
+```
+
+Optional Python (uses **pyperclip**, same as the bridge paste path):
+
+```powershell
+.\.venv\Scripts\python.exe scripts\clipboard_stage.py D:\prompts\draft.md
+Get-Content -Raw -Encoding UTF8 .\note.txt | .\.venv\Scripts\python.exe scripts\clipboard_stage.py -
+```
+
+Scripts print **byte/line counts only**, not your secret text (override only with **`clipboard_stage.ps1 -ShowPayload`** or **`CLIPBOARD_STAGE_ECHO=1`** for the Python helper).
+
+**Inspect foreground / list windows**
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\window_probe.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File .\window_probe.ps1 -List -TitleContains "Mail" -Limit 15
+```
+
+**Paste staged clipboard via bridge** (does not change clipboard; default **does not** press Enter):
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\paste_staged.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File .\paste_staged.ps1 -ExpectTitleContains "Cursor" -ExpectProcessContains "cursor"
+powershell -NoProfile -ExecutionPolicy Bypass -File .\paste_staged.ps1 -ExpectTitleContains "Outlook" -VerifyOnly
+powershell -NoProfile -ExecutionPolicy Bypass -File .\paste_staged.ps1 -PressEnter   # only after you trust the field
+```
+
+**`invoke_bridge.ps1` shortcuts** (same `.env`):
+
+| Action | Meaning |
+|--------|---------|
+| `stage-text-file <path>` | Runs `clipboard_stage.ps1` on a UTF-8 file |
+| `paste` / `paste-enter` | Runs `paste_staged.ps1` (latter adds Enter) |
+| `active-window` | Prints foreground metadata |
+| `focus-window <title> [process]` | `POST /window/focus` |
+| `list-windows [titleFilter] [procFilter]` | Filtered dump of `GET /windows` |
+| `open-or-focus notepad` etc. | Open + focus: `notepad`, `cursor`, `chrome`, `edge`, `powershell`, `pwsh` |
+| `cursor-pos` | `GET /mouse/position` |
+| `move-rel <dx> <dy>` | `POST /mouse/move-relative` |
+| `click-here` | Left click at current cursor position |
+| `click-screenshot` | Left click at cursor, then `POST /screenshot` (short delay) |
+
+**Example: Cursor chat**
+
+1. `.\clipboard_stage.ps1 -LiteralPath .\prompt.txt`
+2. `.\window_probe.ps1` (confirm title/process for Cursor)
+3. Focus the chat field (click or `invoke_bridge.ps1 focus-window Cursor`)
+4. `.\paste_staged.ps1 -ExpectTitleContains Cursor -ExpectProcessContains cursor`
+5. Inspect the composer; only then send manually or add `-PressEnter` on a later run if appropriate.
+
+**Example: email drafted offline**
+
+1. Stage file → 2. `window_probe` → 3. focus mail compose → 4. `paste_staged` with `-ExpectTitleContains` matching your client → 5. verify body → 6. send yourself.
 
 **Limitations**
 

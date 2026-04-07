@@ -124,6 +124,75 @@ function Write-BridgeFailDetail {
     }
 }
 
+function Set-BridgeClipboardFromUtf8File {
+    <#
+    .SYNOPSIS
+      Copy exact text from a UTF-8 (no BOM) file to the Windows clipboard via an STA PowerShell child (reliable Unicode).
+    #>
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$LiteralPath
+    )
+    if (-not (Test-Path -LiteralPath $LiteralPath)) {
+        throw "Clipboard stage file not found: $LiteralPath"
+    }
+    $fullSource = (Resolve-Path -LiteralPath $LiteralPath).Path
+    $escaped = $fullSource.Replace("'", "''")
+    $inner = Join-Path ([IO.Path]::GetTempPath()) ("bridge_clip_sta_" + [Guid]::NewGuid().ToString('N') + '.ps1')
+    $staBody = @"
+Add-Type -AssemblyName System.Windows.Forms
+`$enc = New-Object System.Text.UTF8Encoding `$false
+`$t = [IO.File]::ReadAllText('$escaped', `$enc)
+[System.Windows.Forms.Clipboard]::SetText(`$t)
+"@
+    try {
+        Set-Content -LiteralPath $inner -Value $staBody -Encoding UTF8
+        $p = Start-Process -FilePath "powershell.exe" -ArgumentList @(
+            '-Sta', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $inner
+        ) -Wait -PassThru -WindowStyle Hidden
+        if ($p.ExitCode -ne 0) {
+            throw "STA clipboard helper exit code $($p.ExitCode)"
+        }
+    }
+    finally {
+        Remove-Item -LiteralPath $inner -Force -ErrorAction SilentlyContinue
+    }
+}
+
+function Set-BridgeClipboardTextUtf8 {
+    <#
+    .SYNOPSIS
+      Put exact Unicode string on the clipboard (writes a temp UTF-8 file then uses Set-BridgeClipboardFromUtf8File).
+    #>
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Text
+    )
+    $tmp = Join-Path ([IO.Path]::GetTempPath()) ("bridge_clip_src_" + [Guid]::NewGuid().ToString('N') + '.txt')
+    try {
+        $enc = New-Object System.Text.UTF8Encoding $false
+        [IO.File]::WriteAllText($tmp, $Text, $enc)
+        Set-BridgeClipboardFromUtf8File -LiteralPath $tmp
+    }
+    finally {
+        Remove-Item -LiteralPath $tmp -Force -ErrorAction SilentlyContinue
+    }
+}
+
+function Invoke-BridgePython {
+    <#
+    .SYNOPSIS
+      Run Python in UTF-8 mode so Korean/Unicode (paths, window titles, OCR) decodes correctly in Windows consoles and pipes.
+    #>
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$PythonExe,
+        [Parameter(Mandatory = $true)]
+        [string[]]$ArgumentList
+    )
+    & $PythonExe -X utf8 @ArgumentList
+}
+
 function Test-BridgeActionStep {
     param(
         [string]$Name,

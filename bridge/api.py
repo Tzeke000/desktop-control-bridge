@@ -205,6 +205,36 @@ def mouse_scroll(_: Auth, body: MouseScrollBody) -> dict[str, Any]:
     )
 
 
+class MouseMoveRelativeBody(BaseModel):
+    dx: int
+    dy: int
+    duration: float = Field(default=0.0, ge=0.0)
+
+
+@app.get("/mouse/position", dependencies=[Depends(require_token)])
+def mouse_position() -> dict[str, Any]:
+    if state.status == "stopped":
+        raise HTTPException(503, "Bridge stopped")
+    if state.status == "paused":
+        raise HTTPException(423, "Bridge paused")
+    try:
+        x, y = mouse_control.position()
+    except Exception as e:
+        log_action("/mouse/position", f"err={e!s}", ok=False, auth_ok=True)
+        raise HTTPException(500, str(e)) from e
+    log_action("/mouse/position", f"x={x} y={y}", ok=True, auth_ok=True)
+    return {"x": x, "y": y}
+
+
+@app.post("/mouse/move-relative")
+def mouse_move_relative(_: Auth, body: MouseMoveRelativeBody) -> dict[str, Any]:
+    return _run_control(
+        "/mouse/move-relative",
+        f"dx={body.dx} dy={body.dy} duration={body.duration}",
+        lambda: mouse_control.move_relative(body.dx, body.dy, body.duration),
+    )
+
+
 # --- Keyboard ---
 
 

@@ -30,7 +30,10 @@ param(
     [ValidateSet(
         'status', 'health', 'see', 'see-context', 'see-active',
         'screenshot', 'screenshot-context', 'open-url', 'app-open', 'type', 'hotkey', 'move', 'click',
-        'mouse-test', 'notepad-test', 'browser-test', 'screenshot-test'
+        'mouse-test', 'notepad-test', 'browser-test', 'screenshot-test',
+        'active-window', 'focus-window', 'list-windows',
+        'stage-text-file', 'paste', 'paste-enter',
+        'cursor-pos', 'move-rel', 'click-here', 'open-or-focus', 'click-screenshot'
     )]
     [string]$Action,
     [Parameter(ValueFromRemainingArguments = $true)]
@@ -248,6 +251,150 @@ switch ($Action) {
             Write-Host "[FAIL] screenshot-test - $($_.Exception.Message)" -ForegroundColor Red
             Write-BridgeFailDetail $_
             $success = $false
+        }
+    }
+    'active-window' {
+        $success = Invoke-One {
+            $r = Invoke-BridgeGet '/window/active' -Authenticated
+            if ($r.active) {
+                Write-Host '[PASS] active-window' -ForegroundColor Green
+                Write-Host "       hwnd=$($r.active.hwnd) pid=$($r.active.pid)" -ForegroundColor DarkGray
+                Write-Host "       process=$($r.active.process_name)" -ForegroundColor DarkGray
+                Write-Host "       title=$($r.active.title)" -ForegroundColor DarkGray
+            }
+            else {
+                Write-Host '[PASS] active-window (none)' -ForegroundColor Green
+                Write-Host '       active: (null)' -ForegroundColor DarkGray
+            }
+        }
+    }
+    'focus-window' {
+        if (-not $RemainingArguments -or $RemainingArguments.Count -lt 1) {
+            Write-Host '[FAIL] focus-window - requires <title_substring> [process_name]' -ForegroundColor Red
+            exit 1
+        }
+        $title = [string]$RemainingArguments[0]
+        $proc = $null
+        if ($RemainingArguments.Count -ge 2) {
+            $proc = [string]$RemainingArguments[1]
+        }
+        $success = Invoke-One {
+            $body = @{ title = $title }
+            if ($proc) { $body['process_name'] = $proc }
+            [void](Invoke-BridgeJsonPost '/window/focus' $body)
+            Write-Host '[PASS] focus-window' -ForegroundColor Green
+            Write-Host "       title=$title" -ForegroundColor DarkGray
+            if ($proc) { Write-Host "       process_name=$proc" -ForegroundColor DarkGray }
+        }
+    }
+    'list-windows' {
+        $titleF = ''
+        $procF = ''
+        if ($RemainingArguments -and $RemainingArguments.Count -ge 1) { $titleF = $RemainingArguments[0] }
+        if ($RemainingArguments -and $RemainingArguments.Count -ge 2) { $procF = $RemainingArguments[1] }
+        $success = Invoke-One {
+            $r = Invoke-BridgeGet '/windows' -Authenticated
+            $ws = @($r.windows)
+            if ($titleF) {
+                $t = $titleF.ToLowerInvariant()
+                $ws = $ws | Where-Object { $_.title -and $_.title.ToLowerInvariant().IndexOf($t) -ge 0 }
+            }
+            if ($procF) {
+                $p = $procF.ToLowerInvariant()
+                $ws = $ws | Where-Object { $_.process_name -and $_.process_name.ToLowerInvariant().IndexOf($p) -ge 0 }
+            }
+            Write-Host '[PASS] list-windows' -ForegroundColor Green
+            Write-Host "       count=$($ws.Count)" -ForegroundColor DarkGray
+            $i = 0
+            foreach ($w in $ws | Select-Object -First 40) {
+                Write-Host "       [$i] $($w.process_name) | $($w.title)" -ForegroundColor DarkGray
+                $i++
+            }
+        }
+    }
+    'stage-text-file' {
+        if (-not $RemainingArguments -or $RemainingArguments.Count -lt 1) {
+            Write-Host '[FAIL] stage-text-file - requires <path>' -ForegroundColor Red
+            exit 1
+        }
+        $pth = $RemainingArguments[0]
+        $cs = Join-Path $PSScriptRoot 'clipboard_stage.ps1'
+        & $cs -LiteralPath $pth
+        $success = ($LASTEXITCODE -eq 0)
+    }
+    'paste' {
+        $ps = Join-Path $PSScriptRoot 'paste_staged.ps1'
+        & $ps -EnvFile $EnvFile
+        $success = ($LASTEXITCODE -eq 0)
+    }
+    'paste-enter' {
+        $ps = Join-Path $PSScriptRoot 'paste_staged.ps1'
+        & $ps -EnvFile $EnvFile -PressEnter
+        $success = ($LASTEXITCODE -eq 0)
+    }
+    'cursor-pos' {
+        $success = Invoke-One {
+            $r = Invoke-BridgeGet '/mouse/position' -Authenticated
+            Write-Host '[PASS] cursor-pos' -ForegroundColor Green
+            Write-Host "       x=$($r.x) y=$($r.y)" -ForegroundColor DarkGray
+        }
+    }
+    'move-rel' {
+        if (-not $RemainingArguments -or $RemainingArguments.Count -lt 2) {
+            Write-Host '[FAIL] move-rel - requires <dx> <dy>' -ForegroundColor Red
+            exit 1
+        }
+        $dx = [int]$RemainingArguments[0]
+        $dy = [int]$RemainingArguments[1]
+        $success = Invoke-One {
+            [void](Invoke-BridgeJsonPost '/mouse/move-relative' @{ dx = $dx; dy = $dy; duration = 0 })
+            Write-Host '[PASS] move-rel' -ForegroundColor Green
+            Write-Host "       dx=$dx dy=$dy" -ForegroundColor DarkGray
+        }
+    }
+    'click-here' {
+        $success = Invoke-One {
+            [void](Invoke-BridgeJsonPost '/mouse/click' @{ button = 'left'; clicks = 1 })
+            Write-Host '[PASS] click-here (left at current position)' -ForegroundColor Green
+        }
+    }
+    'click-screenshot' {
+        $success = Invoke-One {
+            [void](Invoke-BridgeJsonPost '/mouse/click' @{ button = 'left'; clicks = 1 })
+            Start-Sleep -Milliseconds 250
+            $cap = Invoke-BridgeJsonPost '/screenshot' @{}
+            Write-Host '[PASS] click-screenshot' -ForegroundColor Green
+            Write-Host "       workspace_path: $($cap.workspace_path)" -ForegroundColor DarkGray
+        }
+    }
+    'open-or-focus' {
+        if (-not $RemainingArguments -or $RemainingArguments.Count -lt 1) {
+            Write-Host '[FAIL] open-or-focus - requires notepad|cursor|chrome|edge|powershell|pwsh' -ForegroundColor Red
+            exit 1
+        }
+        $key = $RemainingArguments[0].Trim().ToLowerInvariant()
+        $map = @{
+            'notepad'    = @{ open = 'notepad'; title = 'Notepad'; proc = $null }
+            'cursor'     = @{ open = 'cursor'; title = 'Cursor'; proc = $null }
+            'chrome'     = @{ open = 'chrome'; title = 'Chrome'; proc = $null }
+            'edge'       = @{ open = 'edge'; title = 'Edge'; proc = $null }
+            'powershell' = @{ open = 'powershell'; title = 'PowerShell'; proc = $null }
+            'pwsh'       = @{ open = 'pwsh'; title = $null; proc = 'pwsh' }
+        }
+        if (-not $map.ContainsKey($key)) {
+            Write-Host '[FAIL] open-or-focus - unknown app key' -ForegroundColor Red
+            exit 1
+        }
+        $info = $map[$key]
+        $success = Invoke-One {
+            [void](Invoke-BridgeJsonPost '/app/open' @{ path_or_name = $info.open })
+            Start-Sleep -Milliseconds 650
+            $fb = @{}
+            if ($info.title) { $fb['title'] = $info.title }
+            if ($info.proc) { $fb['process_name'] = $info.proc }
+            [void](Invoke-BridgeJsonPost '/window/focus' $fb)
+            Write-Host '[PASS] open-or-focus' -ForegroundColor Green
+            Write-Host "       key=$key open=$($info.open) focus_title~=$($info.title)" -ForegroundColor DarkGray
         }
     }
 }

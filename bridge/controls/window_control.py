@@ -162,6 +162,11 @@ def open_application(path_or_name: str) -> None:
         "explorer": "explorer.exe",
         "cmd": "cmd.exe",
         "powershell": "powershell.exe",
+        "pwsh": "pwsh.exe",
+        "chrome": "chrome.exe",
+        "msedge": "msedge.exe",
+        "edge": "msedge.exe",
+        "cursor": "cursor",
     }
     if lower in aliases:
         subprocess.Popen(aliases[lower], shell=False)
