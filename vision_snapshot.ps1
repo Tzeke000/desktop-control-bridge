@@ -23,6 +23,15 @@
 
 .PARAMETER QuietOcr
   OCR text only (no vision_ocr header).
+
+.PARAMETER Perception
+  Forward --perception to vision_ocr (desktop/browser tuned preprocess + detector).
+
+.PARAMETER FilterNoise
+  Forward --filter-noise (drop separator junk / tiny low-confidence fragments).
+
+.PARAMETER Compact
+  Forward --compact (drop consecutive duplicate lines).
 #>
 param(
     [string]$EnvFile = '',
@@ -31,7 +40,10 @@ param(
     [string]$Region = '',
     [string]$Crop = '',
     [switch]$NoPreprocess,
-    [switch]$QuietOcr
+    [switch]$QuietOcr,
+    [switch]$Perception,
+    [switch]$FilterNoise,
+    [switch]$Compact
 )
 
 $ErrorActionPreference = 'Stop'
@@ -58,6 +70,9 @@ if ($Crop.Trim()) { $opt += '--crop'; $opt += $Crop.Trim() }
 if ($ActiveWindow) { $opt += '--active-window' }
 if ($NoPreprocess) { $opt += '--no-preprocess' }
 if ($QuietOcr) { $opt += '--quiet-meta' }
+if ($Perception) { $opt += '--perception' }
+if ($FilterNoise) { $opt += '--filter-noise' }
+if ($Compact) { $opt += '--compact' }
 
 $regionOpts = 0
 if ($Region.Trim()) { $regionOpts++ }
@@ -110,7 +125,7 @@ $py = Join-Path $root '.venv\Scripts\python.exe'
 if (-not (Test-Path -LiteralPath $py)) { $py = 'python' }
 $ocrScript = Join-Path $root 'scripts\vision_ocr.py'
 $allArgs = @($ocrScript, $r.workspace_path) + $opt
-& $py @allArgs
+Invoke-BridgePython -PythonExe $py -ArgumentList $allArgs
 $ocrExit = $LASTEXITCODE
 
 Write-Host '========== end ==========' -ForegroundColor Cyan

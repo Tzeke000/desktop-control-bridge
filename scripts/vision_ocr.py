@@ -7,6 +7,7 @@ Regions: --crop X,Y,W,H, --region NAME, or --active-window (Windows).
 from __future__ import annotations
 
 import argparse
+import re
 import statistics
 import sys
 import tempfile
@@ -15,7 +16,9 @@ from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
-NAMED_REGIONS = frozenset({"top", "bottom", "left", "right", "center", "full"})
+NAMED_REGIONS = frozenset({"top", "bottom", "left", "right", "center", "content", "full"})
+
+_NOISE_LINE_RE = re.compile(r"^[\s\-_|=/\\.:·•]{2,}$")
 
 
 def _ensure_utf8_stdio() -> None:
@@ -83,6 +86,13 @@ def rect_named_region(name: str, w: int, h: int) -> tuple[int, int, int, int]:
         x = (w - cw) // 2
         y = (h - ch) // 2
         return x, y, cw, ch
+    if n == "content":
+        # Heuristic for dense browser/fullscreen UI: skip top tab/URL band, avoid bottom edge.
+        y0 = int(h * 0.11)
+        ch = max(1, int(h * 0.76))
+        if y0 + ch > h:
+            ch = h - y0
+        return 0, y0, w, ch
     raise ValueError(f"unknown region: {name}")
 
 
@@ -107,16 +117,51 @@ def crop_active_window_screen(image_path: Path) -> Path:
     return apply_crop(image_path, (x0, y0, x1 - x0, y1 - y0))
 
 
-def preprocess_to_temp(image_path: Path, *, max_side: int, contrast: float) -> Path:
-    from PIL import Image, ImageEnhance
+def preprocess_to_temp(
+    image_path: Path,
+    *,
+    max_side: int,
+    contrast: float,
+    min_long_side: int,
+    sharpen: float,
+    autocontrast: bool,
+    unsharp_radius: float,
+    unsharp_percent: int,
+    unsharp_threshold: int,
+) -> Path:
+    from PIL import Image, ImageEnhance, ImageFilter, ImageOps
 
     img = Image.open(image_path).convert("RGB").convert("L")
+    if autocontrast:
+        img = ImageOps.autocontrast(img, cutoff=1)
     img = ImageEnhance.Contrast(img).enhance(contrast)
     w, h = img.size
+    long_side = max(w, h)
+    if min_long_side > 0 and long_side > 0 and long_side < min_long_side:
+        scale = min_long_side / long_side
+        nw = max(1, int(round(w * scale)))
+        nh = max(1, int(round(h * scale)))
+        ml = max(nw, nh)
+        if ml > max_side > 0:
+            s2 = max_side / ml
+            nw = max(1, int(round(nw * s2)))
+            nh = max(1, int(round(nh * s2)))
+        img = img.resize((nw, nh), Image.Resampling.LANCZOS)
+        w, h = nw, nh
     m = max(w, h)
-    if m > max_side and m > 0:
+    if m > max_side > 0 and m > 0:
         s = max_side / m
-        img = img.resize((int(w * s), int(h * s)), Image.Resampling.LANCZOS)
+        img = img.resize((max(1, int(w * s)), max(1, int(h * s))), Image.Resampling.LANCZOS)
+    if sharpen and sharpen != 1.0:
+        img = ImageEnhance.Sharpness(img).enhance(sharpen)
+    if unsharp_radius and unsharp_radius > 0 and unsharp_percent > 0:
+        img = img.filter(
+            ImageFilter.UnsharpMask(
+                radius=float(unsharp_radius),
+                percent=int(unsharp_percent),
+                threshold=int(unsharp_threshold),
+            )
+        )
     fd, name = tempfile.mkstemp(suffix=".png")
     import os
 
@@ -142,16 +187,70 @@ def apply_crop(image_path: Path, crop: tuple[int, int, int, int]) -> Path:
     return out
 
 
-def run_ocr_on_file(ocr_input: Path) -> tuple[list[tuple[str, float]], list[float]]:
+def _sort_ocr_results_reading_order(raw: list) -> list:
+    """Top-to-bottom, left-to-right using box geometry (RapidOCR yields unordered boxes)."""
+
+    def sort_key(item: list) -> tuple[float, float]:
+        if not item or len(item) < 1:
+            return (0.0, 0.0)
+        box = item[0]
+        try:
+            ys = [float(p[1]) for p in box]
+            xs = [float(p[0]) for p in box]
+            return (min(ys), min(xs))
+        except (TypeError, ValueError, IndexError):
+            return (0.0, 0.0)
+
+    return sorted(raw, key=sort_key)
+
+
+def filter_noise_lines(lines: list[tuple[str, float]]) -> list[tuple[str, float]]:
+    """Drop likely UI chrome junk (separator glyphs, tiny low-confidence fragments)."""
+    out: list[tuple[str, float]] = []
+    for t, s in lines:
+        st = t.strip()
+        if len(st) <= 1 and s < 0.45:
+            continue
+        if _NOISE_LINE_RE.match(st):
+            continue
+        if len(st) == 1 and not st.isalnum():
+            continue
+        out.append((t, s))
+    return out
+
+
+def compact_consecutive(lines: list[str]) -> list[str]:
+    prev: str | None = None
+    out: list[str] = []
+    for t in lines:
+        if t == prev:
+            continue
+        out.append(t)
+        prev = t
+    return out
+
+
+def run_ocr_on_file(
+    ocr_input: Path,
+    *,
+    det_limit_side_len: int,
+    box_thresh: float,
+    text_score: float,
+) -> tuple[list[tuple[str, float]], list[float]]:
     from rapidocr_onnxruntime import RapidOCR
 
-    engine = RapidOCR()
-    result, _elapse = engine(str(ocr_input))
+    ocr_kw: dict[str, object] = {}
+    if det_limit_side_len > 0:
+        # rapidocr-onnxruntime requires det_model_path when any det_* kwarg is set
+        ocr_kw["det_model_path"] = ""
+        ocr_kw["det_limit_side_len"] = det_limit_side_len
+    engine = RapidOCR(**ocr_kw)
+    result, _elapse = engine(str(ocr_input), box_thresh=box_thresh, text_score=text_score)
     lines: list[tuple[str, float]] = []
     scores: list[float] = []
     if not result:
         return lines, scores
-    for item in result:
+    for item in _sort_ocr_results_reading_order(result):
         if len(item) < 3:
             continue
         text = str(item[1]).strip()
@@ -186,14 +285,77 @@ def main() -> int:
         help="Override vision workspace directory.",
     )
     p.add_argument("--no-preprocess", action="store_true")
-    p.add_argument("--max-side", type=int, default=1600)
+    p.add_argument(
+        "--max-side",
+        type=int,
+        default=2048,
+        help="Longest image side after preprocess (downscale if larger).",
+    )
     p.add_argument("--contrast", type=float, default=1.4)
+    p.add_argument(
+        "--min-long-side",
+        type=int,
+        default=720,
+        help="If missing/long edge is smaller, upscale first (0 to disable). Helps small crops/UI text.",
+    )
+    p.add_argument(
+        "--sharpen",
+        type=float,
+        default=1.12,
+        help="PIL sharpness factor after resize (1.0 = off).",
+    )
+    p.add_argument(
+        "--autocontrast",
+        action="store_true",
+        help="Apply autocontrast before contrast boost (flat captures).",
+    )
+    p.add_argument(
+        "--unsharp-radius",
+        type=float,
+        default=0.0,
+        help="Pillow UnsharpMask radius (>0 enables). Try mild 1–2 for small UI text.",
+    )
+    p.add_argument("--unsharp-percent", type=int, default=120, help="Unsharp percent (default 120).")
+    p.add_argument("--unsharp-threshold", type=int, default=2, help="Unsharp threshold (default 2).")
+    p.add_argument(
+        "--perception",
+        action="store_true",
+        help="Turn on a tuned bundle for desktop/browser screenshots (autocontrast, stronger upscale, mild unsharp, slightly stricter detector).",
+    )
+    p.add_argument(
+        "--filter-noise",
+        action="store_true",
+        help="Drop very short low-confidence fragments and separator-like junk lines.",
+    )
+    p.add_argument(
+        "--compact",
+        action="store_true",
+        help="Remove consecutive duplicate text lines in output.",
+    )
+    p.add_argument(
+        "--det-limit-side-len",
+        type=int,
+        default=2048,
+        help="RapidOCR detector limit_side_len (0 = engine default).",
+    )
+    p.add_argument(
+        "--ocr-box-thresh",
+        type=float,
+        default=0.54,
+        help="Detector box threshold.",
+    )
+    p.add_argument(
+        "--ocr-text-score",
+        type=float,
+        default=0.28,
+        help="Min recognition score to keep a line (lower = more permissive).",
+    )
     p.add_argument("--crop", default="", metavar="X,Y,W,H", help="Pixel crop before OCR.")
     p.add_argument(
         "--region",
         default="",
         metavar="NAME",
-        help="Named band: top, bottom, left, right, center, full.",
+        help="Named band: top, bottom, left, right, center, content (browser-ish main band), full.",
     )
     p.add_argument(
         "--active-window",
@@ -202,6 +364,16 @@ def main() -> int:
     )
     p.add_argument("--quiet-meta", action="store_true")
     args = p.parse_args()
+
+    if args.perception:
+        # Upscale + stricter detector for dense browser/UI; avoid autocontrast/unsharp here
+        # (optional: add --autocontrast and/or --unsharp-radius for flat captures).
+        args.min_long_side = max(args.min_long_side, 800)
+        args.sharpen = max(args.sharpen, 1.15)
+        args.max_side = max(args.max_side, 2304)
+        args.ocr_box_thresh = max(args.ocr_box_thresh, 0.55)
+        args.ocr_text_score = max(args.ocr_text_score, 0.30)
+        args.det_limit_side_len = max(args.det_limit_side_len, 2048)
 
     reg = (args.region or "").strip().lower()
     if reg and reg not in NAMED_REGIONS:
@@ -248,20 +420,42 @@ def main() -> int:
             work = cr
 
         if not args.no_preprocess:
-            pp = preprocess_to_temp(work, max_side=args.max_side, contrast=args.contrast)
+            pp = preprocess_to_temp(
+                work,
+                max_side=args.max_side,
+                contrast=args.contrast,
+                min_long_side=args.min_long_side,
+                sharpen=args.sharpen,
+                autocontrast=args.autocontrast,
+                unsharp_radius=args.unsharp_radius,
+                unsharp_percent=args.unsharp_percent,
+                unsharp_threshold=args.unsharp_threshold,
+            )
             tmp_paths.append(pp)
             ocr_file = pp
         else:
             ocr_file = work
 
         processed_at = datetime.now(timezone.utc).isoformat()
-        lines, scores = run_ocr_on_file(ocr_file)
+        lines, _raw_scores = run_ocr_on_file(
+            ocr_file,
+            det_limit_side_len=max(0, args.det_limit_side_len),
+            box_thresh=args.ocr_box_thresh,
+            text_score=args.ocr_text_score,
+        )
+        if args.filter_noise:
+            lines = filter_noise_lines(lines)
+        scores = [s for _, s in lines]
         text_only = [t for t, _ in lines]
+        if args.compact:
+            text_only = compact_consecutive(text_only)
 
         if not args.quiet_meta:
             print("[vision_ocr] image:", str(img_path))
             print("[vision_ocr] ocr_input:", str(ocr_file))
             print("[vision_ocr] processed_at_utc:", processed_at)
+            if args.perception:
+                print("[vision_ocr] preset: perception")
             if args.active_window:
                 print("[vision_ocr] crop: active_window")
             elif reg:

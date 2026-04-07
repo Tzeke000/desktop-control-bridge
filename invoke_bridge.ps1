@@ -78,7 +78,7 @@ switch ($Action) {
         $splat = @{ EnvFile = $EnvFile }
         if ($RemainingArguments -and $RemainingArguments.Count -ge 1) {
             $rn = $RemainingArguments[0].Trim().ToLowerInvariant()
-            if ($rn -in @('top', 'bottom', 'left', 'right', 'center', 'full')) {
+            if ($rn -in @('top', 'bottom', 'left', 'right', 'center', 'content', 'full')) {
                 $splat['Region'] = $RemainingArguments[0].Trim()
             }
         }

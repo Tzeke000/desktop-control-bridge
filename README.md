@@ -181,6 +181,18 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\vision_ocr.ps1 D:\path\to\
 - `--region NAME` — named band (see table below); mutually exclusive with `--crop` and `--active-window`.
 - `--active-window` — crop the **foreground window** using `GetWindowRect` on the full-screen capture (Windows / pywin32).
 - `--quiet-meta` — print **only** recognized text lines (no header).
+- `--perception` — tuned defaults for **desktop/browser** captures (upscale, stricter detector thresholds; combine with `--autocontrast` on flat pages if needed).
+- `--filter-noise` — drop separator-like lines and tiny low-confidence fragments.
+- `--compact` — remove **consecutive duplicate** lines from output.
+- Optional UnsharpMask: `--unsharp-radius` (greater than 0 enables), `--unsharp-percent`, `--unsharp-threshold`.
+
+**After-paste check** (OCR center band by default; uses `vision_snapshot -Context`):
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\verify_paste_ocr.ps1 -QuietOcr
+powershell -NoProfile -ExecutionPolicy Bypass -File .\verify_paste_ocr.ps1 -Content -Perception -FilterNoise
+powershell -NoProfile -ExecutionPolicy Bypass -File .\verify_paste_ocr.ps1 -ActiveWindow
+```
 
 **Named regions** (fractions of image size; MVP heuristics):
 
@@ -190,6 +202,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\vision_ocr.ps1 D:\path\to\
 | `bottom` | Lower third |
 | `left` / `right` | Left / right third |
 | `center` | Central 50% × 50% |
+| `content` | Full width, ~11%–87% height (skip much tab/URL chrome; heuristic) |
 | `full` | Entire image |
 
 PowerShell also supports `-Region`, `-Crop`, `-ActiveWindow` on `vision_ocr.ps1`.

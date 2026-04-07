@@ -11,6 +11,9 @@ param(
     [switch]$ActiveWindow,
     [switch]$NoPreprocess,
     [switch]$QuietMeta,
+    [switch]$Perception,
+    [switch]$FilterNoise,
+    [switch]$Compact,
     [Parameter(Position = 0)]
     [string]$ImagePath = ''
 )
@@ -86,8 +89,17 @@ if ($NoPreprocess) {
 if ($QuietMeta) {
     [void]$argList.Add('--quiet-meta')
 }
+if ($Perception) {
+    [void]$argList.Add('--perception')
+}
+if ($FilterNoise) {
+    [void]$argList.Add('--filter-noise')
+}
+if ($Compact) {
+    [void]$argList.Add('--compact')
+}
 
-& $py @($argList.ToArray())
+Invoke-BridgePython -PythonExe $py -ArgumentList @($argList.ToArray())
 $code = $LASTEXITCODE
 if ($code -eq 0) {
     Write-Host '[PASS] vision_ocr' -ForegroundColor Green
