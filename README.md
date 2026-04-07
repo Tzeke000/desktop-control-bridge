@@ -500,7 +500,11 @@ With `.env` configured:
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\read_cursor_result.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File .\read_cursor_result.ps1 -Example
+powershell -NoProfile -ExecutionPolicy Bypass -File .\invoke_bridge.ps1 cursor-result
+powershell -NoProfile -ExecutionPolicy Bypass -File .\invoke_bridge.ps1 cursor-result example
 ```
+
+(`cursor-result` skips API config: no `.env` required; it only reads local JSON.)
 
 ## Publishing to GitHub
 

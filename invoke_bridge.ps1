@@ -33,7 +33,8 @@ param(
         'mouse-test', 'notepad-test', 'browser-test', 'screenshot-test',
         'active-window', 'focus-window', 'list-windows',
         'stage-text-file', 'paste', 'paste-enter',
-        'cursor-pos', 'move-rel', 'click-here', 'open-or-focus', 'click-screenshot', 'click-anchor'
+        'cursor-pos', 'move-rel', 'click-here', 'open-or-focus', 'click-screenshot', 'click-anchor',
+        'cursor-result'
     )]
     [string]$Action,
     [Parameter(ValueFromRemainingArguments = $true)]
@@ -49,12 +50,14 @@ if (-not (Test-Path -LiteralPath $common)) {
 }
 . $common
 
-try {
-    Initialize-BridgeClient -ProjectRoot $PSScriptRoot -EnvFile $EnvFile
-}
-catch {
-    Write-Host "[FAIL] config - $($_.Exception.Message)" -ForegroundColor Red
-    exit 1
+if ($Action -ne 'cursor-result') {
+    try {
+        Initialize-BridgeClient -ProjectRoot $PSScriptRoot -EnvFile $EnvFile
+    }
+    catch {
+        Write-Host "[FAIL] config - $($_.Exception.Message)" -ForegroundColor Red
+        exit 1
+    }
 }
 
 function Invoke-One {
@@ -407,6 +410,16 @@ switch ($Action) {
         $nameN = $RemainingArguments[1]
         $condN = if ($RemainingArguments.Count -ge 3) { $RemainingArguments[2] } else { '' }
         & $ca -EnvFile $EnvFile -App $appN -Name $nameN -Condition $condN
+        $success = ($LASTEXITCODE -eq 0)
+    }
+    'cursor-result' {
+        $rc = Join-Path $PSScriptRoot 'read_cursor_result.ps1'
+        if ($RemainingArguments -and $RemainingArguments.Count -ge 1 -and $RemainingArguments[0].Trim().ToLowerInvariant() -eq 'example') {
+            & $rc -Example
+        }
+        else {
+            & $rc
+        }
         $success = ($LASTEXITCODE -eq 0)
     }
 }
