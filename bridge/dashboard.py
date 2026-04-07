@@ -1,13 +1,19 @@
 from __future__ import annotations
 
+import subprocess
+import sys
 import threading
+from pathlib import Path
+
 import tkinter as tk
-from tkinter import messagebox, ttk
+from tkinter import messagebox, scrolledtext, ttk
 
 import requests
 
 from bridge.config import get_settings
 from bridge.state import state
+
+_PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
 
 def open_dashboard_threaded() -> None:
@@ -21,7 +27,7 @@ class Dashboard(tk.Tk):
     def __init__(self) -> None:
         super().__init__()
         self.title("Desktop Control Bridge")
-        self.geometry("420x360")
+        self.geometry("420x400")
         s = get_settings()
         self._token = (s.bridge_token or "").strip()
         self._base = f"http://127.0.0.1:{s.bridge_port}"
@@ -72,6 +78,11 @@ class Dashboard(tk.Tk):
         ttk.Button(tf, text="Types 'hi' in focused window", command=self._test_type).pack(
             fill=tk.X, padx=4, pady=2
         )
+        ttk.Button(
+            tf,
+            text="See (screenshot + local OCR)",
+            command=self._see,
+        ).pack(fill=tk.X, padx=4, pady=2)
 
         self._refresh()
 
@@ -139,3 +150,89 @@ class Dashboard(tk.Tk):
             messagebox.showinfo("keyboard/type", r.text)
         except Exception as e:
             messagebox.showerror("keyboard/type", str(e))
+
+    def _see(self) -> None:
+        def work() -> None:
+            try:
+                r = requests.post(
+                    f"{self._base}/screenshot/context",
+                    headers=self._headers,
+                    json={},
+                    timeout=60,
+                )
+                r.raise_for_status()
+                data = r.json()
+                ws = data.get("workspace_path") or ""
+                if not ws:
+                    raise RuntimeError("No workspace_path in response")
+                script = _PROJECT_ROOT / "scripts" / "vision_ocr.py"
+                if not script.is_file():
+                    raise RuntimeError(f"Missing {script}")
+                proc = subprocess.run(
+                    [
+                        sys.executable,
+                        str(script),
+                        ws,
+                        "--quiet-meta",
+                    ],
+                    capture_output=True,
+                    text=True,
+                    encoding="utf-8",
+                    errors="replace",
+                    cwd=str(_PROJECT_ROOT),
+                    timeout=180,
+                )
+                ocr_out = (proc.stdout or "").strip()
+                ocr_err = (proc.stderr or "").strip()
+                self.after(
+                    0,
+                    lambda: self._show_see_window(data, ocr_out, proc.returncode, ocr_err),
+                )
+            except Exception as e:
+                msg = str(e)
+                self.after(0, lambda m=msg: messagebox.showerror("See", m))
+
+        threading.Thread(target=work, daemon=True).start()
+
+    def _show_see_window(
+        self,
+        snap: dict,
+        ocr_text: str,
+        ocr_code: int,
+        ocr_stderr: str,
+    ) -> None:
+        win = tk.Toplevel(self)
+        win.title("See — screenshot + OCR")
+        win.geometry("620x520")
+        win.transient(self)
+
+        meta = tk.Frame(win, padx=8, pady=8)
+        meta.pack(fill=tk.X)
+        lines = [
+            f"original_path:  {snap.get('original_path', '')}",
+            f"workspace_path: {snap.get('workspace_path', '')}",
+        ]
+        if snap.get("captured_at"):
+            lines.append(f"captured_at:    {snap['captured_at']}")
+        aw = snap.get("active_window")
+        if aw:
+            lines.append(f"active_title:   {aw.get('title', '')}")
+            lines.append(f"active_process: {aw.get('process_name', '')}")
+        for line in lines:
+            ttk.Label(meta, text=line).pack(anchor=tk.W)
+
+        ttk.Label(win, text="OCR text (local RapidOCR):").pack(anchor=tk.W, padx=8)
+        txt = scrolledtext.ScrolledText(win, height=18, wrap=tk.WORD, font=("Consolas", 10))
+        txt.pack(fill=tk.BOTH, expand=True, padx=8, pady=4)
+        parts: list[str] = []
+        if ocr_code != 0:
+            parts.append(f"[OCR exit {ocr_code}]")
+            if ocr_stderr:
+                parts.append(ocr_stderr)
+        parts.append(ocr_text if ocr_text else "(no text detected)")
+        txt.insert(tk.END, "\n\n".join(parts))
+        txt.configure(state=tk.DISABLED)
+
+        bf = ttk.Frame(win, padding=8)
+        bf.pack(fill=tk.X)
+        ttk.Button(bf, text="Close", command=win.destroy).pack(side=tk.RIGHT)
