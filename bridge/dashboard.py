@@ -230,9 +230,31 @@ class Dashboard(tk.Tk):
             if ocr_stderr:
                 parts.append(ocr_stderr)
         parts.append(ocr_text if ocr_text else "(no text detected)")
-        txt.insert(tk.END, "\n\n".join(parts))
+        body = "\n\n".join(parts)
+        txt.insert(tk.END, body)
         txt.configure(state=tk.DISABLED)
+
+        header = "\n".join(lines)
+
+        def _clipboard_set(s: str) -> None:
+            win.clipboard_clear()
+            win.clipboard_append(s)
+            win.update()
+
+        def copy_all() -> None:
+            _clipboard_set(f"{header}\n\n--- OCR ---\n{body}")
+
+        def copy_ocr_only() -> None:
+            if ocr_text:
+                s = ocr_text
+            elif ocr_code != 0 and ocr_stderr:
+                s = ocr_stderr
+            else:
+                s = "(no text detected)"
+            _clipboard_set(s)
 
         bf = ttk.Frame(win, padding=8)
         bf.pack(fill=tk.X)
+        ttk.Button(bf, text="Copy all", command=copy_all).pack(side=tk.LEFT, padx=(0, 4))
+        ttk.Button(bf, text="Copy OCR text", command=copy_ocr_only).pack(side=tk.LEFT, padx=(0, 4))
         ttk.Button(bf, text="Close", command=win.destroy).pack(side=tk.RIGHT)
