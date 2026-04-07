@@ -491,7 +491,7 @@ With `.env` configured:
 
 **Template in repo:** `cursor-handoff/cursor-last-result.example.json`
 
-**Suggested JSON keys:** `status`, `summary`, `changed_files` (array of paths), `commands_to_use` (array of strings), `worked` (boolean), `caveats` (string), `commit_hash` (string), `finished_at` (UTC ISO-8601, e.g. `2026-04-07T12:00:00Z`).
+**Suggested JSON keys:** `status`, `summary`, `changed_files` (array of paths), `commands_to_use` (array of strings), `worked` (boolean), `caveats` (string), `commit_hash` (string), `finished_at` (UTC ISO-8601, e.g. `2026-04-07T12:00:00Z`). Optional: `bridge_restart_required` (boolean), `bridge_restart_note` (clarify **desktop-control-bridge / tray**, not Emil/OpenClaw).
 
 **Pattern for Cursor (end of task):** Overwrite `cursor-handoff/cursor-last-result.json` with UTF-8 JSON containing those fields. Do **not** append to the file; replace it entirely.
 
