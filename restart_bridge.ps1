@@ -24,7 +24,7 @@ $startS = Join-Path $root 'start_bridge.ps1'
 Write-Host '--- restart_bridge: stopping ---' -ForegroundColor Cyan
 & $stopS -EnvFile $EnvFile
 $stopCode = $LASTEXITCODE
-# 0 = stopped or was already down; 1 = error — still try start if was "not verified"
+# 0 = stopped or was already down; 1 = error - still try start if was not verified
 if ($stopCode -ne 0) {
     Write-Host '[WARN] restart_bridge: stop returned non-zero; continuing with start' -ForegroundColor DarkYellow
 }

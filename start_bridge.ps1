@@ -89,10 +89,11 @@ if ($lp -and $verify) {
         python       = $py
         lastAction   = 'start'
     }
-    Write-Host "[PASS] start_bridge: running on 127.0.0.1:$port listen_pid=$lp" -ForegroundColor Green
-}
-else {
-    Write-Host "[PASS] start_bridge: health OK on 127.0.0.1:$port (listen PID not verified — check meta later)" -ForegroundColor Green
-    if ($lp) { Write-Host "       listen_pid=$lp (unverified)" -ForegroundColor DarkYellow }
+    Write-Host ('[PASS] start_bridge: running on 127.0.0.1:{0} listen_pid={1}' -f $port, $lp) -ForegroundColor Green
+} else {
+    Write-Host ('[PASS] start_bridge: health OK on 127.0.0.1:{0} (listen PID not verified - check meta later)' -f $port) -ForegroundColor Green
+    if ($lp) {
+        Write-Host ('       listen_pid={0} (unverified)' -f $lp) -ForegroundColor DarkYellow
+    }
 }
 exit 0
