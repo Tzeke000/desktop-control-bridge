@@ -364,6 +364,24 @@ These scripts load **`BRIDGE_HOST`**, **`BRIDGE_PORT`**, and **`BRIDGE_TOKEN`** 
 | `anchors.ps1` | CRUD **UI anchors** JSON (**`data/anchors.json`** by default). |
 | `click_anchor.ps1` | Move/click via API using a saved anchor (+ optional safety check). |
 | `verify_paste_ocr.ps1` | After paste: screenshot + OCR a band to sanity-check on-screen text. |
+| `start_bridge.ps1` | New PowerShell window: venv **`python run.py`**; skips if **`/health`** already OK; writes **`logs/bridge-lifecycle.json`**. |
+| `stop_bridge.ps1` | Stops verified **`run.py`** listener (project path or meta/listen owner); clears lifecycle meta. |
+| `status_bridge.ps1` | Health + listener PID + **`logs/bridge-lifecycle.json`**; exit **0** if up, **1** if down. |
+| `restart_bridge.ps1` | **`stop_bridge`** then **`start_bridge`**; rechecks health. |
+
+**Bridge lifecycle (Windows)**
+
+From anywhere, use **full path** or `cd` into the repo first — scripts resolve **`$PSScriptRoot`** as the project root.
+
+```powershell
+cd desktop-control-bridge
+powershell -NoProfile -ExecutionPolicy Bypass -File .\status_bridge.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File .\start_bridge.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File .\stop_bridge.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File .\restart_bridge.ps1
+```
+
+Optional **`-EnvFile`** on each script if `.env` lives elsewhere. Port is read from **`BRIDGE_PORT`** in `.env` (default **47821**).
 
 **Verify the bridge is up**
 
