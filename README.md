@@ -1,0 +1,193 @@
+# Desktop Control Bridge
+
+A **Windows-first**, **localhost-only** HTTP API that lets a **trusted local AI assistant** (or any script) control the desktop like a human operator—move the mouse, type, send hotkeys, manage windows, open URLs, and take screenshots.
+
+This is **not** a public remote desktop product and **not** a stealth tool. It is intended to run visibly on your machine with a **system tray UI**, **pause/stop controls**, and **auditable logs**.
+
+## What it does
+
+- Listens only on **`127.0.0.1`** (default port **`47821`**).
+- Requires a **Bearer token** on every control endpoint.
+- Rejects requests whose TCP client is not `127.0.0.1` (so typical `::1` or LAN clients are refused by design).
+- Logs each action to a **human-readable file** under `logs/bridge-actions.log` (configurable).
+- Ships with a **pystray** menu: pause/resume/stop, copy token, open logs, open interactive API docs, and a small **Tk dashboard** for quick tests.
+
+## Safety model
+
+- **Binding**: `127.0.0.1` only—no LAN/WAN exposure by default.
+- **Authentication**: Shared secret via `BRIDGE_TOKEN`; send `Authorization: Bearer <token>`.
+- **Visibility**: Tray icon color reflects **running / paused / stopped**; menu exposes status and project folder.
+- **Control gates**: **`POST /pause`** and **`POST /stop`** disable automation; **`POST /resume`** clears pause (after stop, use tray **Start bridge**—API `resume` returns 503 while stopped).
+- **No autorun**: Nothing installs itself into Startup or scheduled tasks unless **you** add that.
+- **No stealth**: No hidden persistence, credential dumping, or keylogging—only explicit API actions you request.
+- **Logging hygiene**: Typed text is logged as **length + mode**, not full content.
+- **Rejected auth** attempts are logged locally with **`AUTH_REJECTED`**.
+
+**You** are responsible for keeping the token secret and for any desktop actions the API performs.
+
+## Requirements
+
+- **Windows 10 or 11**
+- **Python 3.10+** (3.12 or 3.14 tested; use a [python.org](https://www.python.org/downloads/) install if the Microsoft Store shim causes issues)
+
+## Install (fresh clone)
+
+```powershell
+cd desktop-control-bridge
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+```
+
+If `win32` COM errors appear, run the pywin32 post-install step (often not needed on recent pip builds):
+
+```powershell
+.\.venv\Scripts\python.exe .\.venv\Scripts\pywin32_postinstall.py -install
+```
+
+## Configure
+
+```powershell
+Copy-Item .env.example .env
+notepad .env
+```
+
+Set at least:
+
+- `BRIDGE_TOKEN` — long random string (example: `[guid]::NewGuid().ToString('N') * 2` in PowerShell, or a password manager).
+
+Optional:
+
+- `BRIDGE_PORT` — default `47821`
+- `BRIDGE_LOG_DIR`, `BRIDGE_SCREENSHOT_DIR`
+- `BRIDGE_MACROS_PATH` — JSON map of macro name → list of keys (see `macros.example.json`)
+
+## Run
+
+**Tray + API (recommended)**
+
+```powershell
+.\.venv\Scripts\Activate.ps1
+python run.py
+```
+
+**Headless API only** (no tray—for dev/automation hosts)
+
+```powershell
+python -m bridge
+```
+
+Open interactive docs: `http://127.0.0.1:47821/docs` (use your port if changed).
+
+## Authenticate
+
+Every **control** route expects:
+
+```http
+Authorization: Bearer <your BRIDGE_TOKEN>
+```
+
+`GET /health` and `GET /status` are unauthenticated (localhost-only); everything that can move the machine requires the token.
+
+## API overview
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/health` | Liveness JSON |
+| GET | `/status` | Bridge version, bind address, pause/stop state, last action summary |
+| POST | `/pause` | Pause control (423 on actions until resume) |
+| POST | `/resume` | Resume from paused (503 if fully stopped) |
+| POST | `/stop` | Stop control until tray **Start bridge** |
+| POST | `/mouse/move` | Body: `x`, `y`, optional `duration` (smooth move) |
+| POST | `/mouse/click` | `button` left/right/middle, optional `x`,`y`, `clicks` 1–3 |
+| POST | `/mouse/drag` | `x1,y1` → `x2,y2`, optional `duration`, `button` |
+| POST | `/mouse/scroll` | `amount` (signed), `horizontal` |
+| POST | `/keyboard/type` | `text`, optional `interval`; `mode`: `type` or `paste` (clipboard + Ctrl+V) |
+| POST | `/keyboard/press` | Single `key` |
+| POST | `/keyboard/hotkey` | `keys`: e.g. `["ctrl","c"]` — use `winleft` for Win key |
+| POST | `/keyboard/macro` | Named macro from `BRIDGE_MACROS_PATH` JSON |
+| POST | `/app/open` | Executable path or alias (`notepad`, `calc`, …) |
+| GET | `/windows` | Visible windows with titles and process names |
+| GET | `/window/active` | Foreground window |
+| POST | `/window/focus` | `title` substring and/or `process_name` |
+| POST | `/window/minimize` | Same matcher |
+| POST | `/window/maximize` | Same matcher |
+| POST | `/window/close` | Posts `WM_CLOSE` |
+| POST | `/browser/open-url` | `url`, `browser`: `default` or `chrome` |
+| POST | `/browser/new-tab` | Ctrl+T |
+| POST | `/browser/focus-address-bar` | Ctrl+L |
+| POST | `/browser/search` | Opens Google search for `query` (types URL + Enter) |
+| POST | `/screenshot` | Saves PNG under `screenshots/`, returns `path` |
+
+Full schemas: `/openapi.json` or `/docs`.
+
+## Example PowerShell
+
+```powershell
+$base = "http://127.0.0.1:47821"
+$h = @{ Authorization = "Bearer YOUR_TOKEN_HERE" }
+
+Invoke-RestMethod "$base/health"
+Invoke-RestMethod "$base/status"
+
+$body = @{ x = 100; y = 200; duration = 0.3 } | ConvertTo-Json
+Invoke-RestMethod "$base/mouse/move" -Method Post -Headers $h -Body $body -ContentType "application/json"
+
+$body = @{ keys = @("ctrl","c") } | ConvertTo-Json
+Invoke-RestMethod "$base/keyboard/hotkey" -Method Post -Headers $h -Body $body -ContentType "application/json"
+```
+
+## Example curl
+
+```bash
+curl -s http://127.0.0.1:47821/health
+
+curl -s -X POST http://127.0.0.1:47821/mouse/move \
+  -H "Authorization: Bearer YOUR_TOKEN_HERE" \
+  -H "Content-Type: application/json" \
+  -d "{\"x\":300,\"y\":300,\"duration\":0.5}"
+```
+
+## Action log file
+
+- Default directory: `logs/` (or `BRIDGE_LOG_DIR`).
+- File: `bridge-actions.log`
+- Each line includes timestamp, level, endpoint summary, parameters **without secrets**, and **`OK` / `FAIL`**.
+- **`AUTH_REJECTED`** entries are **`WARNING`** level.
+
+## Troubleshooting
+
+| Issue | Mitigation |
+|-------|------------|
+| `BRIDGE_TOKEN is empty` on start | Create `.env` from `.env.example` and set the token. |
+| `403 Only 127.0.0.1` | Client must connect to IPv4 loopback, not `localhost` resolving to `::1`, and not from another machine. From WSL2, Windows `127.0.0.1` is not the same as WSL `127.0.0.1`—call the Windows host IP instead only if you **intentionally** change binding (not supported out of the box). |
+| `ImportError: win32xxx` | Reinstall `pywin32`, run `pywin32_postinstall.py`. |
+| `pip` builds Pillow from source | Use **Python 3.12+** with a recent pip so a **wheel** is used, or install a prebuilt Pillow for your Python version. |
+| UI automation flaky in games | Normal; this stack targets desktop apps, not anti-cheat games. |
+| Token leak in shell history | Prefer `.env` + app that reads it, or PowerShell secure strings, not inline secrets in shared scripts. |
+
+## Development smoke test
+
+With `.env` configured:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\smoke_test.py
+```
+
+## Publishing to GitHub
+
+This repository is meant to be **full source**. After `git init`:
+
+```powershell
+git add -A
+git commit -m "Initial desktop control bridge"
+git branch -M main
+git remote add origin https://github.com/<you>/<repo>.git
+git push -u origin main
+```
+
+(The assistant cannot push to your GitHub account from this environment.)
+
+## License
+
+Use and modify for your own machines at your own risk. No warranty.

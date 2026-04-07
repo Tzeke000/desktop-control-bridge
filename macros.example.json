@@ -1,0 +1,5 @@
+{
+  "open_task_manager": ["ctrl", "shift", "esc"],
+  "run_dialog": ["winleft", "r"],
+  "alt_tab": ["alt", "tab"]
+}
