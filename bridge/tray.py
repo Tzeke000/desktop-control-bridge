@@ -84,6 +84,9 @@ def _launch_dashboard() -> None:
 
 def run_tray() -> None:
     s = get_settings()
+    host = (s.bridge_host or "127.0.0.1").strip()
+    if host != "127.0.0.1":
+        raise SystemExit("BRIDGE_HOST must be 127.0.0.1 (localhost IPv4 only).")
     if not (s.bridge_token or "").strip():
         raise SystemExit(
             "BRIDGE_TOKEN is empty. Copy .env.example to .env and set BRIDGE_TOKEN."
@@ -92,7 +95,7 @@ def run_tray() -> None:
     def serve() -> None:
         uvicorn.run(
             app,
-            host=s.bridge_host,
+            host=host,
             port=s.bridge_port,
             log_level="info",
             access_log=False,
