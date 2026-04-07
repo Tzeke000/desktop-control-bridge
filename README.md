@@ -121,6 +121,57 @@ Authorization: Bearer <your BRIDGE_TOKEN>
 
 Full schemas: `/openapi.json` or `/docs`.
 
+## PowerShell helper scripts (Windows PowerShell 5.1+)
+
+These scripts load **`BRIDGE_HOST`**, **`BRIDGE_PORT`**, and **`BRIDGE_TOKEN`** from **`.env`** in the project root (or an alternate file). They build the **Bearer** header internally and **never print the raw token**.
+
+| Script | Purpose |
+|--------|---------|
+| `bridge_ps_common.ps1` | Shared library (dot-sourced by the others; do not run directly). |
+| `verify.ps1` | Quick checks: `.env` exists, port valid, `GET /health`, optional `GET /status` with auth. |
+| `smoke_actions.ps1` | Interactive smoke sequences (`mouse-test`, `notepad-test`, …, or `all`). |
+| `invoke_bridge.ps1` | Single-action CLI wrapper for common API calls. |
+
+**Verify the bridge is up**
+
+```powershell
+cd desktop-control-bridge
+powershell -NoProfile -ExecutionPolicy Bypass -File .\verify.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File .\verify.ps1 -SkipStatus
+```
+
+**Smoke scenarios**
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\smoke_actions.ps1 all
+powershell -NoProfile -ExecutionPolicy Bypass -File .\smoke_actions.ps1 screenshot-test
+```
+
+**`invoke_bridge.ps1` examples** (reads `.env`; use `-EnvFile path` for a different env file path)
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\invoke_bridge.ps1 health
+powershell -NoProfile -ExecutionPolicy Bypass -File .\invoke_bridge.ps1 status
+
+powershell -NoProfile -ExecutionPolicy Bypass -File .\invoke_bridge.ps1 screenshot
+powershell -NoProfile -ExecutionPolicy Bypass -File .\invoke_bridge.ps1 open-url https://example.com
+powershell -NoProfile -ExecutionPolicy Bypass -File .\invoke_bridge.ps1 app-open notepad
+
+powershell -NoProfile -ExecutionPolicy Bypass -File .\invoke_bridge.ps1 type 'Hello from the bridge'
+powershell -NoProfile -ExecutionPolicy Bypass -File .\invoke_bridge.ps1 hotkey ctrl,c
+powershell -NoProfile -ExecutionPolicy Bypass -File .\invoke_bridge.ps1 move 200 200
+powershell -NoProfile -ExecutionPolicy Bypass -File .\invoke_bridge.ps1 click left
+
+powershell -NoProfile -ExecutionPolicy Bypass -File .\invoke_bridge.ps1 mouse-test
+powershell -NoProfile -ExecutionPolicy Bypass -File .\invoke_bridge.ps1 notepad-test
+powershell -NoProfile -ExecutionPolicy Bypass -File .\invoke_bridge.ps1 browser-test
+powershell -NoProfile -ExecutionPolicy Bypass -File .\invoke_bridge.ps1 screenshot-test
+
+powershell -NoProfile -ExecutionPolicy Bypass -File .\invoke_bridge.ps1 -EnvFile D:\config\bridge.env status
+```
+
+`BRIDGE_HOST` must be **`127.0.0.1`** (or unset) for these scripts. Exit code **0** means success, **1** failure.
+
 ## Example PowerShell
 
 ```powershell
